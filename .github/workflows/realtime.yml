@@ -1,30 +1,52 @@
 name: Real-Time Data → GitHub Pages
 
+# 觸發時機
 on:
   schedule:
-    - cron: '*/60 * * * *'   # 每 60 分鐘
-  workflow_dispatch:         # 手動觸發
+    - cron: '*/15 * * * *'   # 每 15 分鐘執行
+  workflow_dispatch:         # 手動觸發按鈕
   push:
-    branches: [main]
+    branches: [main]         # 推送立刻跑一次
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
 
+    steps:
+      # 1. 檢出原始碼
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      # 2. 設定 Python
       - name: Setup Python
         uses: actions/setup-python@v4
-        with: { python-version: '3.11' }
+        with:
+          python-version: '3.11'
 
+      # 3. 安裝套件
       - name: Install dependencies
-        run: pip install -U pip yfinance akshare pandas numpy
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
+      # 4. 建立/清理輸出目錄（bash 層級保證資料夾存在）
+      - name: Create & Clean output folder
+        run: |
+          mkdir -p docs/data
+          rm -f docs/data/*.json
+          echo "📂 docs/data 已備妥"
+
+      # 5. 產生最新 JSON（會寫入 docs/data/*.json）
       - name: Generate latest JSON
         run: python update_realtime_json.py
 
+      # 6. 部署到 GitHub Pages（gh-pages 分支）
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
+          # 若開啟 Settings → Actions → Read and write 即可用 GITHUB_TOKEN
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          # 若想用 PAT 可改成 personal_token: ${{ secrets.PAT_TOKEN }}
           publish_dir: ./docs
+          publish_branch: gh-pages
+          force_orphan: true        # 讓 gh-pages 歷史保持單支 commit（可省略）
