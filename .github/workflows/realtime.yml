@@ -2,7 +2,7 @@ name: Real-Time Data → GitHub Pages
 
 on:
   schedule:
-    - cron: '*/15 * * * *'   # 每 15 分鐘
+    - cron: '*/60 * * * *'   # 每 60 分鐘
   workflow_dispatch:         # 手動觸發
   push:
     branches: [main]
