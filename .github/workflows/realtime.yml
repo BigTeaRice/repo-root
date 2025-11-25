@@ -59,7 +59,7 @@ jobs:
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs
+          path: docs          # 整包 docs/ 交给 Pages
 
   # 8. 部署到 GitHub Pages
   deploy:
