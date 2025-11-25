@@ -1,23 +1,31 @@
-name: Real-Time Data → GitHub Pages
+name: Real-Time Data → GitHub Pages (Official)
 
-# 觸發時機
 on:
   schedule:
-    - cron: '*/15 * * * *'   # 每 15 分鐘執行
-  workflow_dispatch:         # 手動觸發按鈕
+    - cron: '*/15 * * * *'   # 每 15 分鐘
+  workflow_dispatch:         # 手動觸發
   push:
-    branches: [main]         # 推送立刻跑一次
+    branches: [main]
+
+# 權限：寫入 Pages 與讀取內容
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
-
     steps:
-      # 1. 檢出原始碼
+      # 1. 檢出
       - name: Checkout
         uses: actions/checkout@v3
 
-      # 2. 設定 Python
+      # 2. Python 環境
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
@@ -29,24 +37,36 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 4. 建立/清理輸出目錄（bash 層級保證資料夾存在）
-      - name: Create & Clean output folder
+      # 4. 建立/清理輸出目錄
+      - name: Create & Clean docs folder
         run: |
           mkdir -p docs/data
           rm -f docs/data/*.json
-          echo "📂 docs/data 已備妥"
+          # 關閉 Jekyll
+          touch docs/.nojekyll
 
-      # 5. 產生最新 JSON（會寫入 docs/data/*.json）
+      # 5. 生成最新 JSON（寫入 docs/data/*.json）
       - name: Generate latest JSON
         run: python update_realtime_json.py
 
-      # 6. 部署到 GitHub Pages（gh-pages 分支）
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+      # 6. 確認檔案列表（debug）
+      - name: List generated files
+        run: ls -la docs/data/
+
+      # 7. 上傳成品（官方 artifact）
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          # 若開啟 Settings → Actions → Read and write 即可用 GITHUB_TOKEN
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          # 若想用 PAT 可改成 personal_token: ${{ secrets.PAT_TOKEN }}
-          publish_dir: ./docs
-          publish_branch: gh-pages
-          force_orphan: true        # 讓 gh-pages 歷史保持單支 commit（可省略）
+          path: docs              # 把整個 docs/ 打包成 artifact
+
+  # 8. 部署到 GitHub Pages
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
