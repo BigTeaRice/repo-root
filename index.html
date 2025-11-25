@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>即時股票 K 線 – GitHub Pages</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff}
+.box{max-width:1200px;margin:20px auto;background:#fff;color:#333;border-radius:12px;padding:20px}
+#chart{width:100%;height:520px}
+.ctrl{margin-bottom:15px}.ctrl button{padding:8px 16px;margin:4px;border:none;border-radius:6px;background:#3498db;color:#fff;cursor:pointer}.ctrl button.active{background:#2c3e50}
+.info{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin-top:15px}.card{background:#f2f2f2;padding:12px;border-radius:8px}
+.loading{text-align:center;padding:30px}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>📈 即時股票 K 線（GitHub Pages 動態版）</h1>
+  <div class="ctrl" id="buttons"></div>
+  <div class="loading" id="loading">載入中…</div>
+  <div id="chart"></div>
+  <div class="info" id="info"></div>
+</div>
+
+<script>
+const SYMBOLS = ['AAPL','0700.HK','000001','MSFT'];
+let myChart = echarts.init(document.getElementById('chart'));
+
+function $(id){return document.getElementById(id)}
+function show(b){$('loading').style.display=b?'block':'none'}
+
+$('buttons').innerHTML = SYMBOLS.map(s=>`<button onclick="switchSym('${s}')">${s}</button>`).join('');
+document.querySelector('button').classList.add('active');
+
+async function loadJSON(sym){
+  const f = sym.toLowerCase().replace('.','_')+'.json';
+  const res = await fetch('data/'+f+'?t='+Date.now());
+  if(!res.ok) throw new Error('Network error');
+  return res.json();
+}
+function jsonToOpts(json){
+  const raw=json.data, dates=raw.map(it=>it.datetime.slice(0,16).replace('T',' '));
+  const ohlc=raw.map(it=>[it.open,it.close,it.low,it.high]);
+  const vol=raw.map(it=>it.volume), ma5=raw.map(it=>it.MA5), ma20=raw.map(it=>it.MA20);
+  return {dates, ohlc, vol, ma5, ma20, rsi: raw[raw.length-1].RSI };
+}
+function draw(opts,sym){
+  const {dates, ohlc, vol, ma5, ma20} = opts;
+  myChart.setOption({
+    title:{text:sym+' K-line',left:'center'},
+    tooltip:{trigger:'axis',axisPointer:{type:'cross'}},
+    legend:{data:['K','MA5','MA20'],top:25},
+    grid:[{left:'10%',right:'8%',top:'15%',height:'55%'}, {left:'10%',right:'8%',top:'75%',height:'12%'}],
+    xAxis:[{type:'category',data:dates,scale:true},{type:'category',gridIndex:1,data:dates,scale:true}],
+    yAxis:[{type:'value',scale:true},{type:'value',scale:true,gridIndex:1}],
+    dataZoom:[{type:'inside',xAxisIndex:[0,1],start:70,end:100},{type:'slider',xAxisIndex:[0,1],start:70,end:100,top:'90%'}],
+    series:[
+      {name:'K',type:'candlestick',data:ohlc,itemStyle:{color:'#ef232a',color0:'#14b143'}},
+      {name:'MA5',type:'line',data:ma5,smooth:true,lineStyle:{width:1.5,color:'#c23531'},symbol:'none'},
+      {name:'MA20',type:'line',data:ma20,smooth:true,lineStyle:{width:1.5,color:'#2c3e50'},symbol:'none'},
+      {name:'Volume',type:'bar',xAxisIndex:1,yAxisIndex:1,data:vol,itemStyle:{color:vol.map((_,i)=>ohlc[i][1]>=ohlc[i][0]?'#ef232a':'#14b143')}}
+    ]
+  });
+  show(false);
+}
+function updatePanel(opts, json){
+  const last=json.data[json.data.length-1];
+  const chg = ((last.close - json.data[json.data.length-2].close)/json.data[json.data.length-2].close*100).toFixed(2);
+  $('info').innerHTML = `
+    <div class="card"><div>最新價</div><div>${last.close.toFixed(2)}</div></div>
+    <div class="card"><div>漲跌幅</div><div style="color:${chg>=0?'#0f0':'#f00'}">${chg}%</div></div>
+    <div class="card"><div>RSI(14)</div><div>${opts.rsi.toFixed(2)}</div></div>
+    <div class="card"><div>更新時間</div><div>${new Date(json.updated).toLocaleString()}</div></div>`;
+}
+async function switchSym(sym){
+  document.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+  document.querySelector(`button[onclick="switchSym('${sym}')"]`).classList.add('active');
+  show(true);
+  const json = await loadJSON(sym);
+  const opts = jsonToOpts(json);
+  draw(opts,sym);
+  updatePanel(opts,json);
+}
+switchSym('AAPL');
+</script>
+</body>
+</html>
