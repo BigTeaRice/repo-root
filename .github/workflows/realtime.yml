@@ -22,7 +22,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
-        with: { python-version: '3.11' }
+        with:
+          python-version: '3.11'
       - run: pip install -r requirements.txt
 
       - name: Build & Generate JSON（含技术指标）
@@ -36,11 +37,14 @@ jobs:
           ls -la docs/
 
       - uses: actions/upload-pages-artifact@v3
-        with: { path: docs }
+        with:
+          path: docs
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    environment: { name: github-pages, url: ${{ steps.deployment.outputs.page_url }} }
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/deploy-pages@v4
