@@ -43,7 +43,7 @@ jobs:
           mkdir -p docs/data        # 重新建立目录
           touch docs/.nojekyll      # 关闭 Jekyll
 
-      # 5. 生成最新 JSON（Python）
+      # 5. 生成最新 JSON（Python）- 已修复 AkShare period='daily'
       - name: Generate latest JSON
         run: python update_realtime_json.py
 
