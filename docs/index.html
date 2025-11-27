@@ -59,41 +59,49 @@ setInterval(() => {
 }, 30000);
 
 // ============= 数据源 =============
-// 1) GoogleFinance / yfinance 15min K（美股、港股）
+// 1) Yahoo Finance 15min K（美股、港股）→ 换免激活代理
 async function fetchYF(sym, exch) {
   const ticker = sym.replace('.HK', '');
-  const df = await fetch(`https://cors-anywhere.herokuapp.com/https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=15m&range=5d`)
-    .then(r => r.json()).catch(() => null);
-  if (!df || df.chart.error) return null;
-  const r = df.chart.result[0];
-  const t = r.timestamp.map(u => new Date(u * 1000));
-  const {open, high, low, close, volume} = r.indicators.quote[0];
-  return open.map((_, i) => ({t: t[i], o: open[i], h: high[i], l: low[i], c: close[i], v: volume[i]}));
+  const url = `https://api.allorigins.win/raw?url=https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=15m&range=5d`;
+  const raw = await fetch(url).then(r => r.text()).catch(() => null);
+  if (!raw) return null;
+  try {
+    const df = JSON.parse(raw);
+    if (df.chart.error) return null;
+    const r = df.chart.result[0];
+    const t = r.timestamp.map(u => new Date(u * 1000));
+    const {open, high, low, close, volume} = r.indicators.quote[0];
+    return open.map((_, i) => ({t: t[i], o: open[i], h: high[i], l: low[i], c: close[i], v: volume[i]}));
+  } catch { return null; }
 }
 
-// 2) AkShare 日 K（深圳、上海）→ 東財接口
+// 2) AkShare 日 K（深圳、上海）→ 换免激活代理
 async function fetchAk(sym) {
   const sec = sym.startsWith('6') ? `1.${sym}` : `0.${sym}`;
-  const url = `https://cors-anywhere.herokuapp.com/https://push2.eastmoney.com/api/qt/stock/get?secid=${sec}&fields=f43,f44,f45,f46,f47,f48,f49,f50,f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64,f65,f66,f67,f68,f69,f70,f71,f72,f73,f74,f75,f76,f77,f78`;
-  const js = await fetch(url).then(r => r.json()).catch(() => null);
-  if (!js || !js.data) return null;
-  const d = js.data;
-  const price = d.f43 / 100, prev = d.f60 / 100;
-  // 模擬 30 天日 K
-  const bars = [];
-  const now = new Date();
-  for (let i = 30; i >= 0; i--) {
-    const dt = new Date(now - i * 24 * 60 * 60 * 1000);
-    if (i === 0) { bars.push({t: dt, o: prev, h: price, l: prev, c: price, v: d.f47}); continue; }
-    const ret = (Math.random() - 0.5) * 0.02;
-    const c = prev * (1 + ret);
-    const o = prev * (1 + (Math.random() - 0.5) * 0.01);
-    const h = Math.max(o, c) * (1 + Math.random() * 0.015);
-    const l = Math.min(o, c) * (1 - Math.random() * 0.015);
-    bars.push({t: dt, o, h, l, c, v: Math.random() * 1e6});
-    prev = c;
-  }
-  return bars;
+  const url = `https://api.allorigins.win/raw?url=https://push2.eastmoney.com/api/qt/stock/get?secid=${sec}&fields=f43,f44,f45,f46,f47,f48,f49,f50,f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64,f65,f66,f67,f68,f69,f70,f71,f72,f73,f74,f75,f76,f77,f78`;
+  const raw = await fetch(url).then(r => r.text()).catch(() => null);
+  if (!raw) return null;
+  try {
+    const js = JSON.parse(raw);
+    if (!js.data) return null;
+    const d = js.data;
+    const price = d.f43 / 100, prev = d.f60 / 100;
+    // 模擬 30 天日 K
+    const bars = [];
+    const now = new Date();
+    for (let i = 30; i >= 0; i--) {
+      const dt = new Date(now - i * 24 * 60 * 60 * 1000);
+      if (i === 0) { bars.push({t: dt, o: prev, h: price, l: prev, c: price, v: d.f47}); continue; }
+      const ret = (Math.random() - 0.5) * 0.02;
+      const c = prev * (1 + ret);
+      const o = prev * (1 + (Math.random() - 0.5) * 0.01);
+      const h = Math.max(o, c) * (1 + Math.random() * 0.015);
+      const l = Math.min(o, c) * (1 - Math.random() * 0.015);
+      bars.push({t: dt, o, h, l, c, v: Math.random() * 1e6});
+      prev = c;
+    }
+    return bars;
+  } catch { return null; }
 }
 
 // ============= 技術指標（前端即時計算） =============
