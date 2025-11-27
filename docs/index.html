@@ -166,8 +166,10 @@ async function fetchData() {
   const mkt = market.value;
   if (!sym) return;
   const bars = (mkt === 'us' || mkt === 'hk') ? await fetchYF(sym, mkt === 'us' ? 'US' : 'HK') : await fetchAk(sym);
+  // ✅ 深/沪 0 笔保底提示
   if (!bars || bars.length === 0) {
-    info.innerHTML = '<div class="item">查無資料</div>';
+    info.innerHTML = '<div class="item">查無資料<br>建议换日期范围</div>';
+    myChart.clear();
     return;
   }
   const ind = calcIndicators(bars);
