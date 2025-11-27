@@ -1,11 +1,10 @@
-# 1. 新建 index.html（复制我提供的完整内容）
 cat > docs/index.html << 'EOF'
 <!DOCTYPE html>
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>实时行情 + 全套技术指标</title>
+<title>零后端实时行情 + 全套技术指标</title>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <style>
 :root{--bg:#f4f6fa;--card:#fff;--text:#333;--accent:#2962ff}
@@ -30,7 +29,7 @@ button{padding:10px 16px;border:none;border-radius:6px;background:var(--accent);
 </head>
 <body>
 <div class="container">
-  <h1>📈 实时行情 + 全套技术指标</h1>
+  <h1>零後端即時行情 + 全套技術指標</h1>
   <div class="card row">
     <select id="market">
       <option value="us">美股 (15min)</option>
@@ -78,28 +77,32 @@ setInterval(() => {
 }, 30000);
 
 // ============= 数据源 =============
-// 1) Yahoo Finance 15min K（美股、港股）→ 用 GitHub Pages 后端 JSON
-async function fetchYF(sym, exch) {
+// 用 GitHub Pages 后端 JSON（零 CORS 问题）
+async function fetchData() {
+  const sym = symbol.value.trim().toUpperCase();
+  const mkt = market.value;
+  if (!sym) return;
   const file = sym.toLowerCase().replace('.', '_') + '.json';
   const url = `data/${file}?t=${Date.now()}`;
   const json = await fetch(url).then(r => r.json()).catch(() => null);
-  if (!json || !json.data) return null;
+  if (!json || !json.data) {
+    info.innerHTML = '<div class="item">后端无数据</div>';
+    myChart.clear();
+    return;
+  }
   // 按时间范围过滤
   const now = new Date();
   const cut = new Date(now - parseRange(range.value));
-  return json.data.filter(it => new Date(it.datetime) >= cut);
-}
-
-// 2) AkShare 日 K（深圳、上海）→ 用 GitHub Pages 后端 JSON
-async function fetchAk(sym) {
-  const file = sym.toLowerCase().replace('.', '_') + '.json';
-  const url = `data/${file}?t=${Date.now()}`;
-  const json = await fetch(url).then(r => r.json()).catch(() => null);
-  if (!json || !json.data) return null;
-  // 按时间范围过滤
-  const now = new Date();
-  const cut = new Date(now - parseRange(range.value));
-  return json.data.filter(it => new Date(it.datetime) >= cut);
+  const bars = json.data.filter(it => new Date(it.datetime) >= cut);
+  if (bars.length === 0) {
+    info.innerHTML = '<div class="item">查無資料<br>建议换日期范围</div>';
+    myChart.clear();
+    return;
+  }
+  const ind = calcIndicators(bars);
+  renderInfo(bars, ind);
+  renderChart(bars, ind);
+  $('#time').innerText = '更新: ' + new Date().toLocaleString();
 }
 
 // 解析时间范围
@@ -163,24 +166,7 @@ function avg(arr) {
 }
 
 // ============= 渲染 =============
-async function fetchData() {
-  const sym = symbol.value.trim().toUpperCase();
-  const mkt = market.value;
-  if (!sym) return;
-  const bars = (mkt === 'us' || mkt === 'hk') ? await fetchYF(sym, mkt === 'us' ? 'US' : 'HK') : await fetchAk(sym);
-  // ✅ 深/沪 0 笔保底提示
-  if (!bars || bars.length === 0) {
-    info.innerHTML = '<div class="item">查無資料<br>建议换日期范围</div>';
-    myChart.clear();
-    return;
-  }
-  const ind = calcIndicators(bars);
-  renderInfo(bars, ind);
-  renderChart(bars, ind);
-  $('#time').innerText = '更新: ' + new Date().toLocaleString();
-}
-
-function renderInfo(bars, ind) {
+async function renderInfo(bars, ind) {
   const last = bars[bars.length - 1];
   const rsi = ind.rsi[ind.rsi.length - 1];
   const atr = ind.atr[ind.atr.length - 1];
@@ -237,122 +223,7 @@ fetchData();
 </html>
 EOF
 
-# 2. 新建 update_realtime_json.py（复制我提供的完整内容）
-cat > update_realtime_json.py << 'EOF'
-#!/usr/bin/env python3
-"""
-实时行情 → JSON（GitHub Actions / 本地通用）
-- Yahoo Finance：美股、港股 15min K
-- AkShare：深圳、上海 日 K（保底 30+5 天，节假不空）
-- 输出：docs/data/<symbol>.json
-"""
-import os
-import json
-import pandas as pd
-import yfinance as yf
-import akshare as ak
-from datetime import datetime, timedelta
-
-OUTPUT_DIR = "docs/data"
-STOCKS = {
-    'AAPL': 'yfinance',
-    '0700.HK': 'yfinance',
-    '000001': 'akshare',
-    'MSFT': 'yfinance',
-}
-BAR_US_HK = '15m'          # Yahoo 15 分钟
-BAR_CN = 'daily'           # AkShare 日 K
-DEEP_DAYS = 30 + 5         # 保底 30 日 + 5 天保险
-
-def ensure_dir():
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-def gmt_now():
-    return datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
-
-def fetch_yf(sym, bar='15m', days=30):
-    """Yahoo Finance 15min K"""
-    ticker = sym.replace('.HK', '')
-    df = yf.Ticker(ticker).history(period=f'{days}d', interval=bar).reset_index()
-    df = df.rename(columns=str.lower)[['datetime','open','high','low','close','volume']]
-    return df
-
-def fetch_ak(sym, bar='daily', days=DEEP_DAYS) -> pd.DataFrame:
-    """AkShare 日 K（保底 30+5 天，节假不空）"""
-    ak_sym = ('sh' if sym.startswith('6') else 'sz') + sym
-    end = datetime.now()
-    start = end - timedelta(days=days)
-    df = ak.stock_zh_a_hist(symbol=ak_sym[2:],
-                            period=bar,
-                            start_date=start.strftime('%Y%m%d'),
-                            end_date=end.strftime('%Y%m%d'),
-                            adjust='')
-    if df.empty:
-        raise RuntimeError(f"AkShare 回傳空 DataFrame（節假日無資料）：{sym}")
-    df = df.rename(columns={'日期': 'datetime', '开盘': 'open', '最高': 'high',
-                            '最低': 'low', '收盘': 'close', '成交量': 'volume'})
-    df['datetime'] = pd.to_datetime(df['datetime'])
-    return df
-
-def calc_indicators(df: pd.DataFrame) -> pd.DataFrame:
-    """前端全套技术指标"""
-    c = df['close']
-    df['MA5'] = c.rolling(5).mean()
-    df['MA10'] = c.rolling(10).mean()
-    df['MA20'] = c.rolling(20).mean()
-    # RSI(14)
-    delta = c.diff()
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
-    rs = gain.rolling(14).mean() / loss.rolling(14).mean()
-    df['RSI'] = 100 - (100 / (1 + rs))
-    # ATR(14)
-    hl = df['high'] - df['low']
-    hcp = (df['high'] - c.shift()).abs()
-    lcp = (df['low'] - c.shift()).abs()
-    tr = pd.concat([hl, hcp, lcp], axis=1).max(axis=1)
-    df['ATR'] = tr.rolling(14).mean()
-    # MTM(12)
-    df['MTM'] = c / c.shift(12) - 1
-    # Doji
-    body = (df['close'] - df['open']).abs()
-    hl2 = df['high'] - df['low']
-    df['DOJI'] = (hl2 > 0) & (body / hl2 < 0.001)
-    return df.dropna(thresh=5)   # 至少 5 栏有值即可
-
-def main():
-    ensure_dir()
-    for sym, src in STOCKS.items():
-        try:
-            if src == 'yfinance':
-                df = fetch_yf(sym, bar=BAR_US_HK, days=30)
-            else:
-                df = fetch_ak(sym, bar=BAR_CN, days=DEEP_DAYS)
-            df = calc_indicators(df)
-            out = {
-                "symbol": sym,
-                "source": src,
-                "updated": gmt_now(),
-                "data": df.to_dict(orient='records')
-            }
-            file_name = sym.lower().replace('.', '_') + '.json'
-            with open(os.path.join(OUTPUT_DIR, file_name), 'w', encoding='utf-8') as f:
-                json.dump(out, f, ensure_ascii=False, default=str)
-            print(f"✅ {sym}  ->  {OUTPUT_DIR}/{file_name}  ({len(df)} 筆)")
-        except Exception as e:
-            print(f"❌ {sym} 失敗: {e}")
-
-    # meta 文件
-    meta = {"build_time": gmt_now(), "stocks": list(STOCKS.keys())}
-    with open(os.path.join(OUTPUT_DIR, "meta.json"), 'w', encoding='utf-8') as f:
-        json.dump(meta, f, ensure_ascii=False, default=str)
-    print("=== 輸出完成 ===")
-
-if __name__ == '__main__':
-    main()
-EOF
-
-# 3. 提交并推送
-git add docs/index.html update_realtime_json.py
-git commit -m "fix: 深沪保底30日+前端0笔提示+时间范围1日-10年+双按钮"
+# 3. 推送并覆盖
+git add docs/index.html
+git commit -m "fix: 零断行完整版+无语法错误"
 git push origin main
