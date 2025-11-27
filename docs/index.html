@@ -23,6 +23,7 @@ button{padding:10px 16px;border:none;border-radius:6px;background:var(--accent);
 .item span:first-child{opacity:.7}
 .item span:last-child{font-weight:600}
 #time{font-size:.8rem;opacity:.6;text-align:right;margin-top:8px}
+.btn-row{margin-top:10px;display:flex;gap:10px}
 </style>
 </head>
 <body>
@@ -36,6 +37,17 @@ button{padding:10px 16px;border:none;border-radius:6px;background:var(--accent);
       <option value="sh">上海 (日K)</option>
     </select>
     <input id="symbol" placeholder="代码 e.g. AAPL, 0700, 000001" value="AAPL">
+    <select id="range">
+      <option value="1d">1 日</option>
+      <option value="5d">5 日</option>
+      <option value="1mo">1 月</option>
+      <option value="3mo">3 月</option>
+      <option value="6mo">6 月</option>
+      <option value="1y">1 年</option>
+      <option value="2y">2 年</option>
+      <option value="5y">5 年</option>
+      <option value="10y">10 年</option>
+    </select>
     <button onclick="fetchData()">查询</button>
   </div>
 
@@ -47,11 +59,16 @@ button{padding:10px 16px;border:none;border-radius:6px;background:var(--accent);
   <div class="card">
     <div id="chart"></div>
   </div>
+
+  <div class="card btn-row">
+    <button onclick="location.href='/'">回主頁</button>
+    <button onclick="aiAnalysis()">人工智能分析</button>
+  </div>
 </div>
 
 <script>
 const $ = q => document.querySelector(q);
-const market = $('#market'), symbol = $('#symbol'), info = $('#info'), myChart = echarts.init($('#chart'));
+const market = $('#market'), symbol = $('#symbol'), range = $('#range'), info = $('#info'), myChart = echarts.init($('#chart'));
 
 // 30 秒自動刷新
 setInterval(() => {
@@ -59,49 +76,34 @@ setInterval(() => {
 }, 30000);
 
 // ============= 数据源 =============
-// 1) Yahoo Finance 15min K（美股、港股）→ 换免激活代理
+// 1) Yahoo Finance 15min K（美股、港股）→ 用 GitHub Pages 后端 JSON
 async function fetchYF(sym, exch) {
-  const ticker = sym.replace('.HK', '');
-  const url = `https://api.allorigins.win/raw?url=https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=15m&range=5d`;
-  const raw = await fetch(url).then(r => r.text()).catch(() => null);
-  if (!raw) return null;
-  try {
-    const df = JSON.parse(raw);
-    if (df.chart.error) return null;
-    const r = df.chart.result[0];
-    const t = r.timestamp.map(u => new Date(u * 1000));
-    const {open, high, low, close, volume} = r.indicators.quote[0];
-    return open.map((_, i) => ({t: t[i], o: open[i], h: high[i], l: low[i], c: close[i], v: volume[i]}));
-  } catch { return null; }
+  const file = sym.toLowerCase().replace('.', '_') + '.json';
+  const url = `data/${file}?t=${Date.now()}`;
+  const json = await fetch(url).then(r => r.json()).catch(() => null);
+  if (!json || !json.data) return null;
+  // 按时间范围过滤
+  const now = new Date();
+  const cut = new Date(now - parseRange(range.value));
+  return json.data.filter(it => new Date(it.datetime) >= cut);
 }
 
-// 2) AkShare 日 K（深圳、上海）→ 换免激活代理
+// 2) AkShare 日 K（深圳、上海）→ 用 GitHub Pages 后端 JSON
 async function fetchAk(sym) {
-  const sec = sym.startsWith('6') ? `1.${sym}` : `0.${sym}`;
-  const url = `https://api.allorigins.win/raw?url=https://push2.eastmoney.com/api/qt/stock/get?secid=${sec}&fields=f43,f44,f45,f46,f47,f48,f49,f50,f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64,f65,f66,f67,f68,f69,f70,f71,f72,f73,f74,f75,f76,f77,f78`;
-  const raw = await fetch(url).then(r => r.text()).catch(() => null);
-  if (!raw) return null;
-  try {
-    const js = JSON.parse(raw);
-    if (!js.data) return null;
-    const d = js.data;
-    const price = d.f43 / 100, prev = d.f60 / 100;
-    // 模擬 30 天日 K
-    const bars = [];
-    const now = new Date();
-    for (let i = 30; i >= 0; i--) {
-      const dt = new Date(now - i * 24 * 60 * 60 * 1000);
-      if (i === 0) { bars.push({t: dt, o: prev, h: price, l: prev, c: price, v: d.f47}); continue; }
-      const ret = (Math.random() - 0.5) * 0.02;
-      const c = prev * (1 + ret);
-      const o = prev * (1 + (Math.random() - 0.5) * 0.01);
-      const h = Math.max(o, c) * (1 + Math.random() * 0.015);
-      const l = Math.min(o, c) * (1 - Math.random() * 0.015);
-      bars.push({t: dt, o, h, l, c, v: Math.random() * 1e6});
-      prev = c;
-    }
-    return bars;
-  } catch { return null; }
+  const file = sym.toLowerCase().replace('.', '_') + '.json';
+  const url = `data/${file}?t=${Date.now()}`;
+  const json = await fetch(url).then(r => r.json()).catch(() => null);
+  if (!json || !json.data) return null;
+  // 按时间范围过滤
+  const now = new Date();
+  const cut = new Date(now - parseRange(range.value));
+  return json.data.filter(it => new Date(it.datetime) >= cut);
+}
+
+// 解析时间范围
+function parseRange(val) {
+  const map = { '1d': 1, '5d': 5, '1mo': 30, '3mo': 90, '6mo': 180, '1y': 365, '2y': 730, '5y': 1825, '10y': 3650 };
+  return (map[val] || 30) * 24 * 60 * 60 * 1000;
 }
 
 // ============= 技術指標（前端即時計算） =============
@@ -218,6 +220,14 @@ function renderChart(bars, ind) {
     ]
   });
 }
+
+// ============= 新增按钮功能 =============
+function aiAnalysis() {
+  alert('🤖 人工智能分析功能即将上线！\n\n✅ 情感分析\n✅ 趋势预测\n✅ 风险评分\n\n敬请期待！');
+}
+
+// ============= 初始化 =============
+fetchData();
 </script>
 </body>
 </html>
