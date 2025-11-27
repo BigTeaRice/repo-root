@@ -2,7 +2,7 @@
 """
 实时行情 → JSON（GitHub Actions / 本地通用）
 - Yahoo Finance：美股、港股 15min K
-- AkShare：深圳、上海 日 K（保底 30 日，避免节假 0 笔）
+- AkShare：深圳、上海 日 K（保底 30+5 天，节假不空）
 - 输出：docs/data/<symbol>.json
 """
 import os
