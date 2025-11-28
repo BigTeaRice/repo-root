@@ -156,9 +156,9 @@
       // 1. 主图：K线 + MA + 布林 + RSI + MACD + Doji散射
       const mainOption = {
         animation: false,
-        legend: {data:['K线','MA5','MA10','MA20','RSI','MACD','Doji','UB','LB'], inactiveColor:'#777', textStyle:{color:'#333'}},
-        tooltip: {trigger: 'axis', axisPointer: {type: 'cross'}, borderWidth:1, borderColor:'#ccc', padding:10, textStyle:{color:'#333'}},
-        axisPointer: {link:[{xAxisIndex:'all'}], label:{backgroundColor:'#777'}},
+        legend: {data:['K线','MA5','MA10','MA20','RSI','MACD','Doji','UB','LB'],inactiveColor:'#777',textStyle:{color:'#333'}},
+        tooltip: {trigger: 'axis',axisPointer: {type: 'cross'},borderWidth:1,borderColor:'#ccc',padding:10,textStyle:{color:'#333'}},
+        axisPointer: {link:[{xAxisIndex:'all'}],label:{backgroundColor:'#777'}},
         grid: [{left:'10%',right:'8%',top:'10%',height:'60%'}],
         xAxis: [{type:'category',data:dates,scale:true,boundaryGap:false,axisLine:{onZero:false},splitLine:{show:false},min:'dataMin',max:'dataMax'}],
         yAxis: [{scale:true,splitArea:{show:true}}],
@@ -207,18 +207,10 @@
 
       // 联动缩放
       mainChart.on('dataZoom', function (params) {
-        volChart.dispatchAction({
-          type: 'dataZoom',
-          start: params.start,
-          end: params.end
-        });
+        volChart.dispatchAction({type: 'dataZoom',start: params.start,end: params.end});
       });
       volChart.on('dataZoom', function (params) {
-        mainChart.dispatchAction({
-          type: 'dataZoom',
-          start: params.start,
-          end: params.end
-        });
+        mainChart.dispatchAction({type: 'dataZoom',start: params.start,end: params.end});
       });
     }
 
@@ -289,7 +281,7 @@
       print('🤖 当前策略为 MA 金叉死叉，建议在震荡市加入 RSI 过滤，减少假信号。');
     }
 
-    /* --------- 假数据 --------- */
+    /* --------- 假数据 fallback --------- */
     function genMockOHLCV(len){
       const out = []; let base = 150;
       for(let i = 0; i < len; i++){
