@@ -41,9 +41,9 @@
       <option value="1y">1 年</option>
     </select>
     <select id="ind" multiple title="Ctrl+多选">
-      <option value="MA" selected>MA</option>
-      <option value="BB">布林</option>
-      <option value="RSI">RSI</option>
+      <option value="MA" selected>移动平均 (MA)</option>
+      <option value="BB">布林带 (Bollinger)</option>
+      <option value="RSI">相对强弱指标 (RSI)</option>
       <option value="MACD">MACD</option>
     </select>
     <button onclick="fetchData()">查询</button>
@@ -63,10 +63,12 @@
         <div><span>ATR(14)</span><span id="atr">--</span></div>
         <div><span>成交量</span><span id="vol">--</span></div>
         <div><span>波动率</span><span id="volat">--</span></div>
+        <div><span>Doj信号</span><span id="doji">--</span></div>
+        <div><span>MTM信号</span><span id="mtm">--</span></div>
       </div>
     </div>
 
-    <!-- 右侧主图 -->
+    <!-- 右侧主图+副图 -->
     <div class="card" style="flex:1 1 600px;">
       <canvas id="mainChart" height="360"></canvas>
       <canvas id="volChart" height="180"></canvas>
@@ -136,6 +138,12 @@
       document.getElementById('atr').textContent  = atr[atr.length-1]?.toFixed(2) ?? '--';
       document.getElementById('vol').textContent  = (vol/1e6).toFixed(1)+'M';
       document.getElementById('volat').textContent= volat+'%';
+
+      // Doji & MTM 信号
+      const doji = Math.abs(last.o - last.c) / (last.h - last.l) < 0.1 ? '十字星' : '无';
+      const mtm  = priceArr[priceArr.length-1] - priceArr[priceArr.length-11];
+      document.getElementById('doji').textContent = doji;
+      document.getElementById('mtm').textContent  = mtm.toFixed(2);
     }
 
     /* --------- 画图表 --------- */
