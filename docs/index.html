@@ -1,169 +1,156 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>零后端行情 + 回测</title>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
-<style>
-:root{--bg:#f4f6fa;--card:#fff;--text:#333;--accent:#2962ff;--profit:#0f0;--loss:#f00}
-@media (prefers-color-scheme: dark){
- :root{--bg:#121212;--card:#1e1e1e;--text:#eee;--accent:#82b1ff;--profit:#4caf50;--loss:#f44336}
-}
-body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto;background:var(--bg);color:var(--text)}
-.container{max-width:1200px;margin:20px auto;padding:10px}
-.card{background:var(--card);border-radius:12px;padding:15px;margin:10px 0;box-shadow:0 2px 8px rgba(0,0,0,.15)}
-h1{text-align:center}
-.row{display:flex;gap:10px;flex-wrap:wrap}
-input,select{flex:1;padding:10px;border:1px solid #bbb;border-radius:6px;background:var(--card);color:var(--text)}
-button{padding:10px 16px;border:none;border-radius:6px;background:var(--accent);color:#fff;cursor:pointer}
-#chart{width:100%;height:460px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax 130px,1fr));gap:10px;font-size:.9rem}
-.item{padding:8px;border-radius:6px;background:var(--bg)}
-.item span:first-child{opacity:.7}
-.item span:last-child{font-weight:600}}
-#time{font-size:.8rem;opacity:.6;text-align:right;margin-top:8px}
-.btn-row{margin-top:10px;display:flex;gap:10px;justify-content:flex-end}
-</style>
+  <meta charset="UTF-8">
+  <title>零后端行情 + 回测</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Chart.js 可视化 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;margin:0;padding:0 8px;background:#f7f7f7;}
+    header{background:#111;color:#fff;padding:12px 16px;font-size:20px;font-weight:700;}
+    .bar{display:flex;gap:12px;align-items:center;padding:12px 16px;background:#fff;border-bottom:1px solid #e5e5e5;}
+    .bar select,.bar input,.bar button{height:36px;font-size:14px;}
+    .bar button{padding:0 16px;background:#111;color:#fff;border:0;border-radius:4px;cursor:pointer;}
+    .bar button:hover{background:#333;}
+    #canvas{background:#fff;margin:16px auto;max-width:1200px;}
+    #log{background:#fff;margin:16px auto;max-width:1200px;padding:16px;font-size:13px;white-space:pre-wrap;height:200px;overflow:auto;border:1px solid #e5e5e5;}
+  </style>
 </head>
 <body>
-<div class="container">
-  <h1>零后端行情 + 回测</h1>
+  <header>零后端行情 + 回测</header>
 
-  <!-- 查询 + 按钮右对齐 -->
-  <div class="card row">
-    <select id="market">
-      <option value="us">美股 (15min)</option>
-      <option value="hk">港股 (15min)</option>
-    </select>
-    <input id="symbol" placeholder="代码 e.g. AAPL, 0700" value="AAPL">
-    <select id="range">
-      <option value="1d">1 日</option>
-      <option value="5d">5 日</option>
-      <option value="1mo">1 月</option>
-      <option value="3mo">3 月</option>
-      <option value="6mo">6 月</option>
-      <option value="1y">1 年</option>
-      <option value="2y">2 年</option>
-      <option value="5y">5 年</option>
-      <option value="10y">10 年</option>
-    </select>
+  <div class="bar">
+    <label>美股 (15min)
+      <select id="symbol">
+        <option value="AAPL">AAPL</option>
+        <option value="MSFT">MSFT</option>
+        <option value="NVDA">NVDA</option>
+      </select>
+    </label>
+
+    <label>周期
+      <select id="range">
+        <option value="5">5日</option>
+        <option value="30">1月</option>
+        <option value="365">1年</option>
+      </select>
+    </label>
+
     <button onclick="fetchData()">查询</button>
-  </div>
-
-  <!-- 按钮右对齐：回测 + AI -->
-  <div class="card btn-row">
     <button onclick="backtest()">回测</button>
     <button onclick="aiAnalysis()">人工智能分析</button>
   </div>
 
-  <div class="card">
-    <div class="grid" id="info"></div>
-    <div id="time"></div>
-  </div>
+  <!-- 图表 -->
+  <div id="canvas"><canvas id="priceChart"></canvas></div>
 
-  <div class="card">
-    <div id="chart"></div>
-  </div>
+  <!-- 回测/分析日志 -->
+  <div id="log"></div>
 
-  <div class="card" id="backtest-card" style="display:none;">
-    <h3>回测结果</h3>
-    <div class="grid" id="backtest-info"></div>
-  </div>
-</div>
+  <script>
+    /* ========== 全局变量 ========== */
+    let chart;                          // Chart.js 实例
+    const logBox = document.getElementById('log');
 
-<script>
-const $ = q => document.querySelector(q);
-const market = $('#market'), symbol = $('#symbol'), range = $('#range'), info = $('#info'), myChart = echarts.init($('#chart')), backtestCard = $('#backtest-card'), backtestInfo = $('#backtest-info'));
+    /* ========== 工具函数 ========== */
+    function print(...args){ logBox.textContent += args.join(' ') + '\n'; logBox.scrollTop = logBox.scrollHeight; }
 
-// 30 秒自動刷新
-setInterval(() => {
-  if (symbol.value.trim()) fetchData();
-}, 30000);
-
-// ============= 数据源 =============
-async function fetchData() {
-  const sym = symbol.value.trim().toUpperCase();
-  const mkt = market.value;
-  if (!sym) return;
-  const file = sym.toLowerCase().replace('.', '_') + '.json';
-  const url = `data/${file}?t=${Date.now()}`;
-  const json = await fetch(url).then(r => r.json()).catch(() => null);
-  if (!json || !json.data) {
-    info.innerHTML = '<div class="item">后端无数据</div>';
-    myChart.clear();
-    return;
-  }
-  const now = new Date();
-  const cut = new Date(now - parseRange(range.value));
-  const bars = json.data.filter(it => new Date(it.datetime) >= cut);
-  if (bars.length === 0) {
-    info.innerHTML = '<div class="item">查無資料<br>建议换日期范围</div>';
-    myChart.clear();
-    return;
-  }
-  const ind = calcIndicators(bars);
-  renderInfo(bars, ind);
-  renderChart(bars, ind);
-  $('#time').innerText = '更新: ' + new Date().toLocaleString();
-}
-
-// ============= 回测功能 =============
-async function backtest() {
-  const sym = symbol.value.trim().toUpperCase();
-  const mkt = market.value;
-  if (!sym) return;
-  const file = sym.toLowerCase().replace('.', '_') + '.json';
-  const json = await fetch(url).then(r => r.json()).catch(() => null);
-  if (!json || !json.data) {
-    backtestInfo.innerHTML = '<div class="item">无数据</div>';
-    backtestCard.style.display = 'none';
-    return;
-  }
-  const now = new Date();
-  const cut = new Date(now - parseRange(range.value));
-  const bars = json.data.filter(it => new Date(it.datetime) >= cut);
-  if (bars.length === 0) {
-    backtestInfo.innerHTML = '<div class="item">无数据</div>';
-    backtestCard.style.display = 'none';
-    return;
-  }
-  // 回测：MA 金叉死叉
-  const trades = [];
-  let holding = false, entryPrice = 0;
-  for (let i = 1; i < bars.length; i++) {
-    const prev = bars[i - 1], curr = bars[i];
-    const ma5 = avg(bars.slice(Math.max(0, i - 4), i + 1).map(it => it.c));
-    const ma20 = avg(bars.slice(Math.max(0, i - 19), i + 1).map(it => it.c));
-    if (!holding && ma5 > ma20 && prev.c < prev.ma20) { // 金叉
-      holding = true;
-      entryPrice = curr.c;
-      trades.push({ type: 'BUY', price: entryPrice, date: curr.t });
-    } else if (holding && ma5 < ma20 && prev.c > prev.ma20) { // 死叉
-      holding = false;
-      const profit = (curr.c - entryPrice) / entryPrice;
-      trades.push({ type: 'SELL', price: curr.c, profit: profit, date: curr.t });
+    /* ========== 1. 拉行情 ========== */
+    async function fetchData(){
+      const sym = document.getElementById('symbol').value;
+      print(`拉取 ${sym} 行情...`);
+      try{
+        // ① 先尝试静态文件：docs/data/${sym}_15m.json
+        const res = await fetch(`./data/${sym}_15m.json?t=${Date.now()}`);
+        if(!res.ok) throw new Error('静态数据不存在 → 跳转到假数据演示');
+        const arr = await res.json();
+        renderChart(arr);
+        print(`✅ 拿到 ${arr.length} 条 K 线`);
+      }catch(e){
+        print('⚠️  静态数据失败，用假数据演示\n', e.message);
+        // ②  fallback：现场伪造 200 条随机 K 线
+        const mock = genMockKline(200);
+        renderChart(mock);
+      }
     }
-  }
-  const win = trades.filter(t => t.type === 'SELL' && t.profit > 0).length;
-  const total = trades.filter(t => t.type === 'SELL').length;
-  const winRate = total ? (win / total * 100).toFixed(1) : '0.0';
-  const pnl = trades.filter(t => t.type === 'SELL').reduce((s, t) => s + t.profit, 0);
-  backtestInfo.innerHTML = `
-    <div class="item"><span>交易次数</span><span>${total}</span></div>
-    <div class="item"><span>胜率</span><span>${winRate}%</span></div>
-    <div class="item"><span>总盈亏</span><span style="color:${pnl >= 0 ? 'var(--profit)' : 'var(--loss)'}}">${(pnl * 100).toFixed(2)}%</span></div>
-  `;
-  backtestCard.style.display = 'block';
-}
 
-// ============= 新增按钮功能 =============
-function aiAnalysis() {
-  alert('🤖 人工智能分析功能即将上线！\n\n✅ 情感分析\n✅ 趋势预测\n✅ 风险评分\n\n敬请期待！');
-}
+    /* ========== 2. 回测：MA 金叉死叉 ========== */
+    function backtest(){
+      if(!chart || !chart.data.datasets.length){ print('❌ 请先“查询”拿到数据'); return; }
+      const data = chart.data.datasets[0].data;   // 收盘价数组
+      const n1 = 5, n2 = 20;
+      let ma1 = SMA(data, n1), ma2 = SMA(data, n2);
+      let pos = 0, cash = 10000, hold = 0, trades = 0;
+      for(let i = n2; i < data.length; i++){
+        const price = data[i];
+        if(ma1[i] > ma2[i] && pos <= 0){          // 金叉买
+          hold = Math.floor(cash / price);
+          cash -= hold * price;
+          pos = 1; trades++;
+          print(`📈 金叉买入 @ ${price.toFixed(2)} 股数 ${hold}`);
+        }else if(ma1[i] < ma2[i] && pos > 0){    // 死叉卖
+          cash += hold * price;
+          print(`📉 死叉卖出 @ ${price.toFixed(2)} 股数 ${hold}`);
+          pos = 0; hold = 0;
+        }
+      }
+      const final = cash + hold * data[data.length-1];
+      print(`\n🧾 总交易 ${trades} 次，最终净值 ${final.toFixed(2)}，收益率 ${((final/10000-1)*100).toFixed(2)}%`);
+    }
 
-// ============= 初始化 =============
-fetchData();
-</script>
+    /* ========== 3. AI 分析（占位） ========== */
+    function aiAnalysis(){
+      print('🤖 人工智能分析：当前策略基于 MA 金叉死叉，建议在震荡市中配合 RSI 过滤，减少假信号。');
+    }
+
+    /* ========== 4. 画 Chart ========== */
+    function renderChart(priceArr){
+      const labels = priceArr.map((_,i)=>i);
+      if(chart){ chart.destroy(); }
+      chart = new Chart(document.getElementById('priceChart'),{
+        type:'line',
+        data:{
+          labels,
+          datasets:[{
+            label:'Close',
+            data:priceArr,
+            borderColor:'#111',
+            tension:0.1
+          }]
+        },
+        options:{
+          responsive:true,
+          plugins:{legend:{display:false}},
+          scales:{y:{beginAtZero:false}}
+        }
+      });
+    }
+
+    /* ========== 5. 工具：SMA  ========== */
+    function SMA(arr, n){
+      const out = [];
+      let sum = 0;
+      for(let i = 0; i < arr.length; i++){
+        sum += arr[i];
+        if(i >= n) sum -= arr[i-n];
+        out[i] = i >= n-1 ? sum/n : null;
+      }
+      return out;
+    }
+
+    /* ========== 6. 工具：生成假 K 线 ========== */
+    function genMockKline(count){
+      const out = []; let base = 150;
+      for(let i = 0; i < count; i++){
+        base += (Math.random()-0.49)*2;
+        out.push(Number(base.toFixed(2)));
+      }
+      return out;
+    }
+
+    /* ========== 7. 默认自动查一次 ========== */
+    fetchData();
+  </script>
 </body>
 </html>
