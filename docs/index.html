@@ -2,30 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>零后端行情 + 回测</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <style>
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;margin:0;padding:0 8px;background:#f7f7f7;}
-    header{background:#111;color:#fff;padding:12px 16px;font-size:20px;font-weight:700;}
-    .bar{display:flex;gap:12px;align-items:center;padding:12px 16px;background:#fff;border-bottom:1px solid #e5e5e5;}
-    .bar select,.bar input,.bar button{height:36px;font-size:14px;}
-    .bar button{padding:0 16px;background:#111;color:#fff;border:0;border-radius:4px;cursor:pointer;}
-    .bar button:hover{background:#333;}
-    #canvas{background:#fff;margin:16px auto;max-width:1200px;}
-    #log{background:#fff;margin:16px auto;max-width:1200px;padding:16px;font-size:13px;white-space:pre-wrap;height:200px;overflow:auto;border:1px solid #e5e5e5;}
-  </style>
-</head>
-<body>
-  <header>零后端行情 + 回测</header>
-  <div class="bar">
-    <label>美股 15min
-      <select id="symbol">
-        <optio<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <title>零后端行情 + 回测（15 min 自动更新）</title>
+  <title>零后端行情 + 回测（15min 自动更新）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
@@ -40,16 +17,17 @@
   </style>
 </head>
 <body>
-  <header>零后端行情 + 回测（15 min 自动更新）</header>
+  <header>零后端行情 + 回测（15min 自动更新）</header>
+
   <div class="bar">
-    <label>美股 15min
-      <select id="symbol">
-        <option value="aapl">AAPL</option>
-        <option value="msft">MSFT</option>
-        <option value="nvda">NVDA</option>
-        <option value="tsla">TSLA</option>
-      </select>
-    </label>
+    <label for="symbol">美股 15min</label>
+    <select id="symbol">
+      <option value="aapl">AAPL</option>
+      <option value="msft">MSFT</option>
+      <option value="nvda">NVDA</option>
+      <option value="tsla">TSLA</option>
+    </select>
+
     <button onclick="fetchData()">查询</button>
     <button onclick="backtest()">回测</button>
     <button onclick="aiAnalysis()">AI 分析</button>
