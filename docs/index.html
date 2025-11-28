@@ -2,59 +2,75 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>零后端行情+技术指标</title>
+  <title>股票分析工具 - 零后端</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;margin:0;padding:0 8px 60px;background:#f7f7f7;}
-    header{background:#111;color:#fff;padding:12px 16px;font-size:20px;font-weight:700;position:sticky;top:0;z-index:10;}
-    .bar{display:flex;gap:10px;align-items:center;padding:12px 16px;background:#fff;border-bottom:1px solid #e5e5e5;flex-wrap:wrap;}
-    .bar input,.bar select,.bar button{height:36px;font-size:14px;}
-    .bar button{padding:0 16px;background:#111;color:#fff;border:0;border-radius:4px;cursor:pointer;}
-    .bar button:hover{background:#333;}
-    canvas{background:#fff;margin:16px auto;max-width:1200px;}
-    #log{background:#fff;margin:16px auto;max-width:1200px;padding:12px;font-size:13px;white-space:pre-wrap;height:150px;overflow:auto;border:1px solid #e5e5e5;}
-    /* 底部固定导航 */
-    footer{position:fixed;bottom:0;left:0;right:0;background:#111;display:flex;justify-content:center;gap:20px;padding:10px;}
+    :root{--primary:#111;--accent:#f59331;--bg:#f7f7f7;--card:#fff;}
+    *{box-sizing:border-box;}
+    body{margin:0;padding:0 0 60px;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;}
+    header{background:var(--primary);color:#fff;padding:12px 16px;font-size:18px;font-weight:700;position:sticky;top:0;z-index:10;}
+    .top-bar{display:flex;flex-wrap:wrap;gap:10px;padding:12px 16px;background:var(--card);border-bottom:1px solid #e5e5e5;align-items:center;}
+    .top-bar input,.top-bar select,.top-bar button{height:36px;font-size:14px;}
+    .top-bar button{padding:0 16px;background:var(--primary);color:#fff;border:0;border-radius:4px;cursor:pointer;}
+    .top-bar button:hover{background:#333;}
+    .card{background:var(--card);border-radius:6px;padding:16px;margin:16px;box-shadow:0 1px 3px rgba(0,0,0,.1);}
+    .indicator-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;font-size:13px;}
+    .indicator-grid div{display:flex;justify-content:space-between;}
+    .price{font-size:28px;font-weight:700;color:var(--accent);}
+    .change{font-size:16px;}
+    canvas{background:var(--card);border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin:0 16px 16px;}
+    #log{background:var(--card);margin:16px;border-radius:6px;padding:12px;font-size:13px;white-space:pre-wrap;height:120px;overflow:auto;}
+    footer{position:fixed;bottom:0;left:0;right:0;background:var(--primary);display:flex;justify-content:center;gap:20px;padding:10px;}
     footer a{color:#fff;text-decoration:none;padding:8px 16px;background:#333;border-radius:4px;font-size:14px;}
     footer a:hover{background:#555;}
   </style>
 </head>
 <body>
-  <header>零后端行情 + 技术指标</header>
+  <header>股票分析工具 - 零后端</header>
 
-  <div class="bar">
-    <label for="symbol">股票代码</label>
+  <div class="top-bar">
     <input id="symbol" type="text" placeholder="AAPL / 0700.HK" value="AAPL">
-
-    <label for="range">周期</label>
     <select id="range">
       <option value="1d">1 天</option>
-      <option value="5d" selected>5 天</option>
-      <option value="30d">30 天</option>
+      <option value="5d">5 天</option>
+      <option value="30d" selected>30 天</option>
       <option value="90d">90 天</option>
       <option value="180d">180 天</option>
       <option value="1y">1 年</option>
     </select>
-
-    <label for="ind">指标</label>
     <select id="ind" multiple title="Ctrl+多选">
       <option value="MA" selected>MA</option>
       <option value="BB">布林</option>
       <option value="RSI">RSI</option>
       <option value="MACD">MACD</option>
     </select>
-
     <button onclick="fetchData()">查询</button>
-    <!-- 本页功能按钮 -->
-    <button onclick="backtest()">回测</button>
-    <button onclick="aiAnalysis()">AI 分析</button>
   </div>
 
-  <!-- 图表区域 -->
-  <canvas id="mainChart"></canvas>
-  <canvas id="rsiChart"></canvas>
-  <canvas id="macdChart"></canvas>
+  <!-- 实时卡片 -->
+  <div class="card">
+    <div class="price" id="price">--</div>
+    <div class="change" id="change">--</div>
+    <div class="indicator-grid">
+      <div><span>MA5</span><span id="ma5">--</span></div>
+      <div><span>MA20</span><span id="ma20">--</span></div>
+      <div><span>RSI(14)</span><span id="rsi">--</span></div>
+      <div><span>ATR(14)</span><span id="atr">--</span></div>
+      <div><span>成交量</span><span id="vol">--</span></div>
+      <div><span>波动率</span><span id="volat">--</span></div>
+    </div>
+  </div>
+
+  <!-- 主图：价格 + 指标 -->
+  <canvas id="mainChart" height="300"></canvas>
+  <!-- 副图①：成交量 -->
+  <canvas id="volChart" height="180"></canvas>
+  <!-- 副图②：RSI -->
+  <canvas id="rsiChart" height="180"></canvas>
+  <!-- 副图③：MACD -->
+  <canvas id="macdChart" height="180"></canvas>
+
   <div id="log"></div>
 
   <!-- 底部固定导航 -->
@@ -69,7 +85,7 @@
     const logBox = document.getElementById('log');
     function print(...args){ logBox.textContent += args.join(' ') + '\n'; logBox.scrollTop = logBox.scrollHeight; }
 
-    let priceArr = [], volArr = [], mainChart, rsiChart, macdChart;
+    let priceArr = [], volArr = [], mainChart, volChart, rsiChart, macdChart;
 
     /* --------- 拉数据 --------- */
     async function fetchData(){
@@ -80,18 +96,43 @@
         const file = sym.toLowerCase().replace('.','') + `_${range}.json`;
         const res = await fetch(`./data/${file}?t=${Date.now()}`);
         if(!res.ok) throw new Error('静态文件不存在');
-        const raw = await res.json();          // [{c:...,v:...,t:...}, ...]
+        const raw = await res.json();
         priceArr = raw.map(o=>o.c);
         volArr   = raw.map(o=>o.v);
+        updateCard(raw[raw.length-1]);
         drawCharts(raw);
         print(`✅ 拿到 ${raw.length} 条记录`);
       }catch(e){
         print('⚠️ 静态数据失败，用假数据演示');
-        const mock = genMockOHLCV(range==='1d'?78:780);
+        const mock = genMockOHLCV(200);
         priceArr = mock.map(o=>o.c);
         volArr   = mock.map(o=>o.v);
+        updateCard(mock[mock.length-1]);
         drawCharts(mock);
       }
+    }
+
+    /* --------- 更新卡片 --------- */
+    function updateCard(last){
+      const prev = priceArr[priceArr.length-2];
+      const chg  = last.c - prev;
+      const chgP = (chg/prev*100).toFixed(2);
+      document.getElementById('price').textContent = last.c.toFixed(2);
+      document.getElementById('change').textContent = `${chg>0?'+':''}${chg.toFixed(2)} (${chgP}%)`;
+      document.getElementById('change').style.color = chg>0?'#e53e3e':'#4caf50';
+
+      const ma5 = SMA(priceArr,5), ma20 = SMA(priceArr,20);
+      const rsi = RSI(priceArr,14);
+      const atr = ATR(priceArr,14);
+      const vol = volArr.slice(-1)[0];
+      const volat = (ATR(priceArr,14)/last.c*100).toFixed(2);
+
+      document.getElementById('ma5').textContent  = ma5[ma5.length-1]?.toFixed(2) ?? '--';
+      document.getElementById('ma20').textContent = ma20[ma20.length-1]?.toFixed(2) ?? '--';
+      document.getElementById('rsi').textContent  = rsi[rsi.length-1]?.toFixed(2) ?? '--';
+      document.getElementById('atr').textContent  = atr[atr.length-1]?.toFixed(2) ?? '--';
+      document.getElementById('vol').textContent  = (vol/1e6).toFixed(1)+'M';
+      document.getElementById('volat').textContent= volat+'%';
     }
 
     /* --------- 画图表 --------- */
@@ -99,103 +140,88 @@
       const labels = ohlcv.map((_,i)=>i);
       const indSel = Array.from(document.getElementById('ind').selectedOptions).map(o=>o.value);
 
-      // 主图：价格 + 成交量 + 指标
+      // 1. 主图：价格 + 指标（无成交量）
       const mainData = {
         labels,
-        datasets: [
-          {label: 'Close', data: priceArr, borderColor: '#111', backgroundColor: 'rgba(17,17,17,.1)', yAxisID: 'y', order: 0},
-          {label: 'Volume', data: volArr, backgroundColor: 'rgba(66,133,244,.3)', yAxisID: 'y1', type: 'bar', order: 2}
-        ]
+        datasets: [{label: 'Close', data: priceArr, borderColor: '#111', backgroundColor: 'rgba(17,17,17,.05)', yAxisID: 'y', order: 0}]
       };
       if(indSel.includes('MA')){
-        const ma5 = SMA(priceArr,5), ma10=SMA(priceArr,10), ma20=SMA(priceArr,20);
+        const ma5 = SMA(priceArr,5), ma20 = SMA(priceArr,20);
         mainData.datasets.push(
-          {label: 'MA5',  data: ma5,  borderColor: '#f59331', borderWidth: 1, pointRadius: 0, yAxisID: 'y', order: 1},
-          {label: 'MA10', data: ma10, borderColor: '#43a047', borderWidth: 1, pointRadius: 0, yAxisID: 'y', order: 1},
-          {label: 'MA20', data: ma20, borderColor: '#1976d2', borderWidth: 1, pointRadius: 0, yAxisID: 'y', order: 1}
+          {label: 'MA5',  data: ma5,  borderColor: '#f59331', borderWidth: 1.5, pointRadius: 0, yAxisID: 'y', order: 1},
+          {label: 'MA20', data: ma20, borderColor: '#43a047', borderWidth: 1.5, pointRadius: 0, yAxisID: 'y', order: 1}
         );
       }
       if(indSel.includes('BB')){
         const bb = BB(priceArr,20);
         mainData.datasets.push(
-          {label: 'UB', data: bb.ub, borderColor: 'rgba(244,67,54,.8)', borderWidth: 1, pointRadius: 0, yAxisID: 'y', order: 1},
-          {label: 'LB', data: bb.lb, borderColor: 'rgba(244,67,54,.8)', borderWidth: 1, pointRadius: 0, yAxisID: 'y', order: 1}
+          {label: 'UB', data: bb.ub, borderColor: 'rgba(244,67,54,.6)', borderWidth: 1, pointRadius: 0, yAxisID: 'y', order: 1},
+          {label: 'LB', data: bb.lb, borderColor: 'rgba(244,67,54,.6)', borderWidth: 1, pointRadius: 0, yAxisID: 'y', order: 1}
         );
       }
       if(mainChart) mainChart.destroy();
       mainChart = new Chart(document.getElementById('mainChart'),{
         type: 'line',
         data: mainData,
-        options: {
-          responsive: true,
-          interaction: {mode: 'index', intersect: false},
-          scales: {
-            y: {type: 'linear', display: true, position: 'left'},
-            y1: {type: 'linear', display: true, position: 'right', grid: {drawOnChartArea: false}, ticks: {beginAtZero: true}}
-          }
-        }
+        options: {responsive: true, maintainAspectRatio: false, interaction: {mode: 'index', intersect: false}, scales: {y: {grid: {color: 'rgba(0,0,0,.05)'}}}}
       });
 
-      // RSI 副图
+      // 2. 成交量独立图
+      if(volChart) volChart.destroy();
+      volChart = new Chart(document.getElementById('volChart'),{
+        type: 'bar',
+        data: {labels, datasets: [{label: 'Volume', data: volArr, backgroundColor: 'rgba(66,133,244,.25)'}]},
+        options: {responsive: true, maintainAspectRatio: false, scales: {y: {ticks: {callback: v=>(v/1e6)+'M'}}}}
+      });
+
+      // 3. RSI
       if(indSel.includes('RSI')){
         const rsi = RSI(priceArr,14);
         if(rsiChart) rsiChart.destroy();
         rsiChart = new Chart(document.getElementById('rsiChart'),{
           type: 'line',
           data: {labels, datasets: [{label: 'RSI(14)', data: rsi, borderColor: '#ff9800', tension: .1}]},
-          options: {responsive: true, scales: {y: {min: 0, max: 100}}}
+          options: {responsive: true, maintainAspectRatio: false, scales: {y: {min: 0, max: 100}}}
         });
       }else if(rsiChart){ rsiChart.destroy(); rsiChart=null; }
 
-      // MACD 副图
+      // 4. MACD
       if(indSel.includes('MACD')){
         const macd = MACD(priceArr);
         if(macdChart) macdChart.destroy();
         macdChart = new Chart(document.getElementById('macdChart'),{
           type: 'bar',
-          data: {
-            labels,
-            datasets: [
-              {label: 'MACD', data: macd.macd, backgroundColor: 'rgba(66,133,244,.8)'},
-              {label: 'Signal', data: macd.signal, backgroundColor: 'rgba(244,67,54,.8)'}
-            ]
-          },
-          options: {responsive: true}
+          data: {labels, datasets: [
+            {label: 'MACD', data: macd.macd, backgroundColor: 'rgba(66,133,244,.8)'},
+            {label: 'Signal', data: macd.signal, backgroundColor: 'rgba(244,67,54,.8)'}
+          ]},
+          options: {responsive: true, maintainAspectRatio: false}
         });
       }else if(macdChart){ macdChart.destroy(); macdChart=null; }
     }
 
-    /* --------- 技术指标函数 --------- */
+    /* --------- 技术指标 --------- */
     function SMA(arr, n){
       const out = []; let sum = 0;
-      for(let i = 0; i < arr.length; i++){
-        sum += arr[i];
-        if(i >= n) sum -= arr[i - n];
-        out[i] = i >= n - 1 ? sum / n : null;
-      }
+      for(let i = 0; i < arr.length; i++){ sum += arr[i]; if(i >= n) sum -= arr[i - n]; out[i] = i >= n - 1 ? sum / n : null; }
       return out;
     }
     function BB(arr, n){
       const ma = SMA(arr, n), out = {ub: [], lb: []};
       for(let i = n - 1; i < arr.length; i++){
         const std = Math.sqrt(arr.slice(i - n + 1, i + 1).reduce((s, v) => s + (v - ma[i]) ** 2, 0) / n);
-        out.ub[i] = ma[i] + 2 * std;
-        out.lb[i] = ma[i] - 2 * std;
+        out.ub[i] = ma[i] + 2 * std; out.lb[i] = ma[i] - 2 * std;
       }
       return out;
     }
     function RSI(arr, n = 14){
-      const rsi = [];
-      let up = 0, down = 0;
-      for(let i = 1; i <= n; i++){
-        const diff = arr[i] - arr[i - 1];
-        up += Math.max(diff, 0); down += Math.max(-diff, 0);
-      }
+      const rsi = []; let up = 0, down = 0;
+      for(let i = 1; i <= n; i++){ const d = arr[i] - arr[i - 1]; up += Math.max(d, 0); down += Math.max(-d, 0); }
       let avgUp = up / n, avgDown = down / n;
       for(let i = n; i < arr.length; i++){
-        const diff = arr[i] - arr[i - 1];
-        avgUp = (avgUp * (n - 1) + Math.max(diff, 0)) / n;
-        avgDown = (avgDown * (n - 1) + Math.max(-diff, 0)) / n;
+        const d = arr[i] - arr[i - 1];
+        avgUp = (avgUp * (n - 1) + Math.max(d, 0)) / n;
+        avgDown = (avgDown * (n - 1) + Math.max(-d, 0)) / n;
         const rs = avgUp / (avgDown || 1);
         rsi[i] = 100 - 100 / (1 + rs);
       }
@@ -206,24 +232,17 @@
       const macd = [];
       for(let i = slow - 1; i < arr.length; i++) macd[i] = (ema12[i] || 0) - (ema26[i] || 0);
       const sig = EMA(macd.filter(v => v != null), signal);
-      const signalLine = [], histogram = [];
-      for(let i = slow + signal - 2; i < arr.length; i++){
-        signalLine[i] = sig[i - slow - signal + 2 + signal - 1] || 0;
-        histogram[i] = macd[i] - signalLine[i];
-      }
-      return {macd, signal: signalLine, hist: histogram};
+      const signalLine = [];
+      for(let i = slow + signal - 2; i < arr.length; i++) signalLine[i] = sig[i - slow - signal + 2 + signal - 1] || 0;
+      return {macd, signal: signalLine};
     }
     function EMA(arr, n){
-      const k = 2 / (n + 1), out = [];
-      let ema = arr[0];
-      for(let i = 0; i < arr.length; i++){
-        ema = arr[i] * k + ema * (1 - k);
-        out[i] = ema;
-      }
+      const k = 2 / (n + 1), out = []; let ema = arr[0];
+      for(let i = 0; i < arr.length; i++){ ema = arr[i] * k + ema * (1 - k); out[i] = ema; }
       return out;
     }
 
-    /* --------- 本页功能 --------- */
+    /* --------- 功能 --------- */
     function backtest(){
       if(!priceArr.length){ print('❌ 请先查询数据'); return; }
       const ma5 = SMA(priceArr,5), ma20 = SMA(priceArr,20);
@@ -248,7 +267,7 @@
       print('🤖 当前策略为 MA 金叉死叉，建议在震荡市加入 RSI 过滤，减少假信号。');
     }
 
-    /* --------- 假数据 fallback --------- */
+    /* --------- 假数据 --------- */
     function genMockOHLCV(len){
       const out = []; let base = 150;
       for(let i = 0; i < len; i++){
@@ -263,7 +282,7 @@
       return out;
     }
 
-    /* --------- 默认加载 --------- */
+    /* --------- 初始加载 --------- */
     fetchData();
   </script>
 </body>
