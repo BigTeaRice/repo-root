@@ -1,15 +1,18 @@
-name: Build & Generate JSON（含技术指标）
+name: 15min-Auto-Crawl-Deploy
 
 on:
   schedule:
-    # 每天 UTC 04:00 运行一次
-    - cron: '0 4 * * *'
-  workflow_dispatch:   # 手动触发按钮
+    - cron: '*/15 * * * *'   # 每 15 分钟
+  workflow_dispatch:         # 手动按钮保留
 
 permissions:
   contents: write
   pages: write
   id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -28,10 +31,10 @@ jobs:
           pip install -U pip
           pip install yfinance pandas
 
-      - name: Crawl 30d 15min data
+      - name: Crawl 30d 15min close
         run: |
           mkdir -p docs/data
-          python crawl.py
+          python .github/workflows/crawl.py
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -43,5 +46,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to GitHub Pages
-        id: deployment
         uses: actions/deploy-pages@v4
