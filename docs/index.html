@@ -2,97 +2,170 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>零后端行情 + 回测（15min 自动更新）</title>
+  <title>零后端行情+技术指标</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;margin:0;padding:0 8px;background:#f7f7f7;}
-    header{background:#111;color:#fff;padding:12px 16px;font-size:20px;font-weight:700;}
-    .bar{display:flex;gap:12px;align-items:center;padding:12px 16px;background:#fff;border-bottom:1px solid #e5e5e5;}
-    .bar select,.bar button{height:36px;font-size:14px;}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;margin:0;padding:0 8px 60px;background:#f7f7f7;}
+    header{background:#111;color:#fff;padding:12px 16px;font-size:20px;font-weight:700;position:sticky;top:0;z-index:10;}
+    .bar{display:flex;gap:10px;align-items:center;padding:12px 16px;background:#fff;border-bottom:1px solid #e5e5e5;flex-wrap:wrap;}
+    .bar input,.bar select,.bar button{height:36px;font-size:14px;}
     .bar button{padding:0 16px;background:#111;color:#fff;border:0;border-radius:4px;cursor:pointer;}
     .bar button:hover{background:#333;}
-    #canvas{background:#fff;margin:16px auto;max-width:1200px;}
-    #log{background:#fff;margin:16px auto;max-width:1200px;padding:16px;font-size:13px;white-space:pre-wrap;height:200px;overflow:auto;border:1px solid #e5e5e5;}
+    canvas{background:#fff;margin:16px auto;max-width:1200px;}
+    #log{background:#fff;margin:16px auto;max-width:1200px;padding:12px;font-size:13px;white-space:pre-wrap;height:150px;overflow:auto;border:1px solid #e5e5e5;}
+    /* 底部固定导航 */
+    footer{position:fixed;bottom:0;left:0;right:0;background:#111;display:flex;justify-content:center;gap:20px;padding:10px;}
+    footer a{color:#fff;text-decoration:none;padding:8px 16px;background:#333;border-radius:4px;font-size:14px;}
+    footer a:hover{background:#555;}
   </style>
 </head>
 <body>
-  <header>零后端行情 + 回测（15min 自动更新）</header>
+  <header>零后端行情 + 技术指标</header>
 
   <div class="bar">
-    <label for="symbol">美股 15min</label>
-    <select id="symbol">
-      <option value="aapl">AAPL</option>
-      <option value="msft">MSFT</option>
-      <option value="nvda">NVDA</option>
-      <option value="tsla">TSLA</option>
+    <label for="symbol">股票代码</label>
+    <input id="symbol" type="text" placeholder="AAPL / 0700.HK" value="AAPL">
+
+    <label for="range">周期</label>
+    <select id="range">
+      <option value="1d">1 天</option>
+      <option value="5d" selected>5 天</option>
+      <option value="30d">30 天</option>
+      <option value="90d">90 天</option>
+      <option value="180d">180 天</option>
+      <option value="1y">1 年</option>
+    </select>
+
+    <label for="ind">指标</label>
+    <select id="ind" multiple title="Ctrl+多选">
+      <option value="MA" selected>MA</option>
+      <option value="BB">布林</option>
+      <option value="RSI">RSI</option>
+      <option value="MACD">MACD</option>
     </select>
 
     <button onclick="fetchData()">查询</button>
+    <!-- 本页功能按钮 -->
     <button onclick="backtest()">回测</button>
     <button onclick="aiAnalysis()">AI 分析</button>
   </div>
 
-  <div id="canvas"><canvas id="priceChart"></canvas></div>
+  <!-- 图表区域 -->
+  <canvas id="mainChart"></canvas>
+  <canvas id="rsiChart"></canvas>
+  <canvas id="macdChart"></canvas>
   <div id="log"></div>
 
+  <!-- 底部固定导航 -->
+  <footer>
+    <a href="./">返回主頁</a>
+    <a href="./backtest.html">回测页面</a>
+    <a href="./ai.html">AI 分析</a>
+  </footer>
+
   <script>
-    let chart;
+    /* --------- 工具 --------- */
     const logBox = document.getElementById('log');
     function print(...args){ logBox.textContent += args.join(' ') + '\n'; logBox.scrollTop = logBox.scrollHeight; }
 
+    let priceArr = [], volArr = [], mainChart, rsiChart, macdChart;
+
+    /* --------- 拉数据 --------- */
     async function fetchData(){
-      const sym = document.getElementById('symbol').value;
-      print(`拉取 ${sym.toUpperCase()} 行情...`);
+      const sym = document.getElementById('symbol').value.trim();
+      const range = document.getElementById('range').value;
+      print(`拉取 ${sym} ${range} 行情...`);
       try{
-        const res = await fetch(`./data/${sym}.json?t=${Date.now()}`);
+        const file = sym.toLowerCase().replace('.','') + `_${range}.json`;
+        const res = await fetch(`./data/${file}?t=${Date.now()}`);
         if(!res.ok) throw new Error('静态文件不存在');
-        const arr = await res.json();
-        renderChart(arr);
-        print(`✅ 拿到 ${arr.length} 条 15m 收盘价`);
+        const raw = await res.json();          // [{c:...,v:...,t:...}, ...]
+        priceArr = raw.map(o=>o.c);
+        volArr   = raw.map(o=>o.v);
+        drawCharts(raw);
+        print(`✅ 拿到 ${raw.length} 条记录`);
       }catch(e){
         print('⚠️ 静态数据失败，用假数据演示');
-        const mock = genMockKline(780);
-        renderChart(mock);
+        const mock = genMockOHLCV(range==='1d'?78:780);
+        priceArr = mock.map(o=>o.c);
+        volArr   = mock.map(o=>o.v);
+        drawCharts(mock);
       }
     }
 
-    function renderChart(priceArr){
-      const labels = priceArr.map((_,i)=>i);
-      if(chart) chart.destroy();
-      chart = new Chart(document.getElementById('priceChart'),{
-        type:'line',
-        data:{ labels, datasets:[{ label:'Close', data:priceArr, borderColor:'#111', tension:0.1 }] },
-        options:{ responsive:true, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:false } } }
-      });
-    }
+    /* --------- 画图表 --------- */
+    function drawCharts(ohlcv){
+      const labels = ohlcv.map((_,i)=>i);
+      const indSel = Array.from(document.getElementById('ind').selectedOptions).map(o=>o.value);
 
-    function backtest(){
-      if(!chart || !chart.data.datasets.length){ print('❌ 请先查询数据'); return; }
-      const data = chart.data.datasets[0].data;
-      const [n1, n2] = [5, 20];
-      const ma1 = SMA(data, n1), ma2 = SMA(data, n2);
-      let pos = 0, cash = 10000, hold = 0, trades = 0;
-      for(let i = n2; i < data.length; i++){
-        const price = data[i];
-        if(ma1[i] > ma2[i] && pos <= 0){
-          hold = Math.floor(cash / price);
-          cash -= hold * price; pos = 1; trades++;
-          print(`📈 金叉买入 @ ${price.toFixed(2)} 股数 ${hold}`);
-        }else if(ma1[i] < ma2[i] && pos > 0){
-          cash += hold * price;
-          print(`📉 死叉卖出 @ ${price.toFixed(2)} 股数 ${hold}`);
-          pos = 0; hold = 0;
+      // 主图：价格 + 成交量 + 指标
+      const mainData = {
+        labels,
+        datasets: [
+          {label: 'Close', data: priceArr, borderColor: '#111', backgroundColor: 'rgba(17,17,17,.1)', yAxisID: 'y', order: 0},
+          {label: 'Volume', data: volArr, backgroundColor: 'rgba(66,133,244,.3)', yAxisID: 'y1', type: 'bar', order: 2}
+        ]
+      };
+      if(indSel.includes('MA')){
+        const ma5 = SMA(priceArr,5), ma10=SMA(priceArr,10), ma20=SMA(priceArr,20);
+        mainData.datasets.push(
+          {label: 'MA5',  data: ma5,  borderColor: '#f59331', borderWidth: 1, pointRadius: 0, yAxisID: 'y', order: 1},
+          {label: 'MA10', data: ma10, borderColor: '#43a047', borderWidth: 1, pointRadius: 0, yAxisID: 'y', order: 1},
+          {label: 'MA20', data: ma20, borderColor: '#1976d2', borderWidth: 1, pointRadius: 0, yAxisID: 'y', order: 1}
+        );
+      }
+      if(indSel.includes('BB')){
+        const bb = BB(priceArr,20);
+        mainData.datasets.push(
+          {label: 'UB', data: bb.ub, borderColor: 'rgba(244,67,54,.8)', borderWidth: 1, pointRadius: 0, yAxisID: 'y', order: 1},
+          {label: 'LB', data: bb.lb, borderColor: 'rgba(244,67,54,.8)', borderWidth: 1, pointRadius: 0, yAxisID: 'y', order: 1}
+        );
+      }
+      if(mainChart) mainChart.destroy();
+      mainChart = new Chart(document.getElementById('mainChart'),{
+        type: 'line',
+        data: mainData,
+        options: {
+          responsive: true,
+          interaction: {mode: 'index', intersect: false},
+          scales: {
+            y: {type: 'linear', display: true, position: 'left'},
+            y1: {type: 'linear', display: true, position: 'right', grid: {drawOnChartArea: false}, ticks: {beginAtZero: true}}
+          }
         }
-      }
-      const final = cash + hold * data[data.length-1];
-      print(`\n🧾 交易 ${trades} 次，最终净值 ${final.toFixed(2)}，收益率 ${((final/10000-1)*100).toFixed(2)}%`);
+      });
+
+      // RSI 副图
+      if(indSel.includes('RSI')){
+        const rsi = RSI(priceArr,14);
+        if(rsiChart) rsiChart.destroy();
+        rsiChart = new Chart(document.getElementById('rsiChart'),{
+          type: 'line',
+          data: {labels, datasets: [{label: 'RSI(14)', data: rsi, borderColor: '#ff9800', tension: .1}]},
+          options: {responsive: true, scales: {y: {min: 0, max: 100}}}
+        });
+      }else if(rsiChart){ rsiChart.destroy(); rsiChart=null; }
+
+      // MACD 副图
+      if(indSel.includes('MACD')){
+        const macd = MACD(priceArr);
+        if(macdChart) macdChart.destroy();
+        macdChart = new Chart(document.getElementById('macdChart'),{
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              {label: 'MACD', data: macd.macd, backgroundColor: 'rgba(66,133,244,.8)'},
+              {label: 'Signal', data: macd.signal, backgroundColor: 'rgba(244,67,54,.8)'}
+            ]
+          },
+          options: {responsive: true}
+        });
+      }else if(macdChart){ macdChart.destroy(); macdChart=null; }
     }
 
-    function aiAnalysis(){
-      print('🤖 当前策略为 MA 金叉死叉，建议在震荡市加入 RSI 过滤，减少假信号。');
-    }
-
+    /* --------- 技术指标函数 --------- */
     function SMA(arr, n){
       const out = []; let sum = 0;
       for(let i = 0; i < arr.length; i++){
@@ -102,13 +175,95 @@
       }
       return out;
     }
-
-    function genMockKline(count){
-      const out = []; let base = 150;
-      for(let i = 0; i < count; i++){ base += (Math.random() - 0.49) * 2; out.push(Number(base.toFixed(2))); }
+    function BB(arr, n){
+      const ma = SMA(arr, n), out = {ub: [], lb: []};
+      for(let i = n - 1; i < arr.length; i++){
+        const std = Math.sqrt(arr.slice(i - n + 1, i + 1).reduce((s, v) => s + (v - ma[i]) ** 2, 0) / n);
+        out.ub[i] = ma[i] + 2 * std;
+        out.lb[i] = ma[i] - 2 * std;
+      }
+      return out;
+    }
+    function RSI(arr, n = 14){
+      const rsi = [];
+      let up = 0, down = 0;
+      for(let i = 1; i <= n; i++){
+        const diff = arr[i] - arr[i - 1];
+        up += Math.max(diff, 0); down += Math.max(-diff, 0);
+      }
+      let avgUp = up / n, avgDown = down / n;
+      for(let i = n; i < arr.length; i++){
+        const diff = arr[i] - arr[i - 1];
+        avgUp = (avgUp * (n - 1) + Math.max(diff, 0)) / n;
+        avgDown = (avgDown * (n - 1) + Math.max(-diff, 0)) / n;
+        const rs = avgUp / (avgDown || 1);
+        rsi[i] = 100 - 100 / (1 + rs);
+      }
+      return rsi;
+    }
+    function MACD(arr, fast = 12, slow = 26, signal = 9){
+      const ema12 = EMA(arr, fast), ema26 = EMA(arr, slow);
+      const macd = [];
+      for(let i = slow - 1; i < arr.length; i++) macd[i] = (ema12[i] || 0) - (ema26[i] || 0);
+      const sig = EMA(macd.filter(v => v != null), signal);
+      const signalLine = [], histogram = [];
+      for(let i = slow + signal - 2; i < arr.length; i++){
+        signalLine[i] = sig[i - slow - signal + 2 + signal - 1] || 0;
+        histogram[i] = macd[i] - signalLine[i];
+      }
+      return {macd, signal: signalLine, hist: histogram};
+    }
+    function EMA(arr, n){
+      const k = 2 / (n + 1), out = [];
+      let ema = arr[0];
+      for(let i = 0; i < arr.length; i++){
+        ema = arr[i] * k + ema * (1 - k);
+        out[i] = ema;
+      }
       return out;
     }
 
+    /* --------- 本页功能 --------- */
+    function backtest(){
+      if(!priceArr.length){ print('❌ 请先查询数据'); return; }
+      const ma5 = SMA(priceArr,5), ma20 = SMA(priceArr,20);
+      let pos = 0, cash = 10000, hold = 0, trades = 0;
+      for(let i = 20; i < priceArr.length; i++){
+        const price = priceArr[i];
+        if(ma5[i] > ma20[i] && pos <= 0){
+          hold = Math.floor(cash / price);
+          cash -= hold * price; pos = 1; trades++;
+          print(`📈 金叉买入 @ ${price.toFixed(2)} 股数 ${hold}`);
+        }else if(ma5[i] < ma20[i] && pos > 0){
+          cash += hold * price;
+          print(`📉 死叉卖出 @ ${price.toFixed(2)} 股数 ${hold}`);
+          pos = 0; hold = 0;
+        }
+      }
+      const final = cash + (hold * priceArr[priceArr.length - 1]);
+      print(`\n🧾 交易 ${trades} 次，最终净值 ${final.toFixed(2)}，收益率 ${((final/10000-1)*100).toFixed(2)}%`);
+    }
+
+    function aiAnalysis(){
+      print('🤖 当前策略为 MA 金叉死叉，建议在震荡市加入 RSI 过滤，减少假信号。');
+    }
+
+    /* --------- 假数据 fallback --------- */
+    function genMockOHLCV(len){
+      const out = []; let base = 150;
+      for(let i = 0; i < len; i++){
+        base += (Math.random() - 0.49) * 2;
+        const c = Number(base.toFixed(2));
+        const o = c + (Math.random() - 0.5) * 1;
+        const h = c + Math.random() * 1;
+        const l = c - Math.random() * 1;
+        const v = Math.floor(Math.random() * 1e7);
+        out.push({o, h, l, c, v, t: i});
+      }
+      return out;
+    }
+
+    /* --------- 默认加载 --------- */
     fetchData();
   </script>
 </body>
