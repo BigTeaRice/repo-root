@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <title>零后端行情 + 回测</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- Chart.js 可视化 -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;margin:0;padding:0 8px;background:#f7f7f7;}
@@ -19,137 +18,103 @@
 </head>
 <body>
   <header>零后端行情 + 回测</header>
-
   <div class="bar">
-    <label>美股 (15min)
+    <label>美股 15min
       <select id="symbol">
-        <option value="AAPL">AAPL</option>
-        <option value="MSFT">MSFT</option>
-        <option value="NVDA">NVDA</option>
+        <option value="aapl">AAPL</option>
+        <option value="msft">MSFT</option>
+        <option value="nvda">NVDA</option>
+        <option value="tsla">TSLA</option>
       </select>
     </label>
-
-    <label>周期
-      <select id="range">
-        <option value="5">5日</option>
-        <option value="30">1月</option>
-        <option value="365">1年</option>
-      </select>
-    </label>
-
     <button onclick="fetchData()">查询</button>
     <button onclick="backtest()">回测</button>
-    <button onclick="aiAnalysis()">人工智能分析</button>
+    <button onclick="aiAnalysis()">AI 分析</button>
   </div>
 
-  <!-- 图表 -->
   <div id="canvas"><canvas id="priceChart"></canvas></div>
-
-  <!-- 回测/分析日志 -->
   <div id="log"></div>
 
   <script>
-    /* ========== 全局变量 ========== */
-    let chart;                          // Chart.js 实例
+    let chart;
     const logBox = document.getElementById('log');
-
-    /* ========== 工具函数 ========== */
     function print(...args){ logBox.textContent += args.join(' ') + '\n'; logBox.scrollTop = logBox.scrollHeight; }
 
-    /* ========== 1. 拉行情 ========== */
+    /* 拉数据 */
     async function fetchData(){
       const sym = document.getElementById('symbol').value;
-      print(`拉取 ${sym} 行情...`);
+      print(`拉取 ${sym.toUpperCase()} 行情...`);
       try{
-        // ① 先尝试静态文件：docs/data/${sym}_15m.json
         const res = await fetch(`./data/${sym}_15m.json?t=${Date.now()}`);
-        if(!res.ok) throw new Error('静态数据不存在 → 跳转到假数据演示');
+        if(!res.ok) throw new Error('静态文件不存在');
         const arr = await res.json();
         renderChart(arr);
-        print(`✅ 拿到 ${arr.length} 条 K 线`);
+        print(`✅ 拿到 ${arr.length} 条 15m 收盘价`);
       }catch(e){
-        print('⚠️  静态数据失败，用假数据演示\n', e.message);
-        // ②  fallback：现场伪造 200 条随机 K 线
-        const mock = genMockKline(200);
+        print('⚠️ 静态数据失败，用假数据演示');
+        const mock = genMockKline(780);
         renderChart(mock);
       }
     }
 
-    /* ========== 2. 回测：MA 金叉死叉 ========== */
+    /* 画 Chart */
+    function renderChart(priceArr){
+      const labels = priceArr.map((_,i)=>i);
+      if(chart) chart.destroy();
+      chart = new Chart(document.getElementById('priceChart'),{
+        type:'line',
+        data:{ labels, datasets:[{ label:'Close', data:priceArr, borderColor:'#111', tension:0.1 }] },
+        options:{ responsive:true, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:false } } }
+      });
+    }
+
+    /* 回测：MA 金叉死叉 */
     function backtest(){
-      if(!chart || !chart.data.datasets.length){ print('❌ 请先“查询”拿到数据'); return; }
-      const data = chart.data.datasets[0].data;   // 收盘价数组
-      const n1 = 5, n2 = 20;
-      let ma1 = SMA(data, n1), ma2 = SMA(data, n2);
+      if(!chart || !chart.data.datasets.length){ print('❌ 请先查询数据'); return; }
+      const data = chart.data.datasets[0].data;
+      const [n1, n2] = [5, 20];
+      const ma1 = SMA(data, n1), ma2 = SMA(data, n2);
       let pos = 0, cash = 10000, hold = 0, trades = 0;
       for(let i = n2; i < data.length; i++){
         const price = data[i];
-        if(ma1[i] > ma2[i] && pos <= 0){          // 金叉买
+        if(ma1[i] > ma2[i] && pos <= 0){
           hold = Math.floor(cash / price);
-          cash -= hold * price;
-          pos = 1; trades++;
+          cash -= hold * price; pos = 1; trades++;
           print(`📈 金叉买入 @ ${price.toFixed(2)} 股数 ${hold}`);
-        }else if(ma1[i] < ma2[i] && pos > 0){    // 死叉卖
+        }else if(ma1[i] < ma2[i] && pos > 0){
           cash += hold * price;
           print(`📉 死叉卖出 @ ${price.toFixed(2)} 股数 ${hold}`);
           pos = 0; hold = 0;
         }
       }
       const final = cash + hold * data[data.length-1];
-      print(`\n🧾 总交易 ${trades} 次，最终净值 ${final.toFixed(2)}，收益率 ${((final/10000-1)*100).toFixed(2)}%`);
+      print(`\n🧾 交易 ${trades} 次，最终净值 ${final.toFixed(2)}，收益率 ${((final/10000-1)*100).toFixed(2)}%`);
     }
 
-    /* ========== 3. AI 分析（占位） ========== */
+    /* AI 分析占位 */
     function aiAnalysis(){
-      print('🤖 人工智能分析：当前策略基于 MA 金叉死叉，建议在震荡市中配合 RSI 过滤，减少假信号。');
+      print('🤖 当前策略为 MA 金叉死叉，建议在震荡市加入 RSI 过滤，减少假信号。');
     }
 
-    /* ========== 4. 画 Chart ========== */
-    function renderChart(priceArr){
-      const labels = priceArr.map((_,i)=>i);
-      if(chart){ chart.destroy(); }
-      chart = new Chart(document.getElementById('priceChart'),{
-        type:'line',
-        data:{
-          labels,
-          datasets:[{
-            label:'Close',
-            data:priceArr,
-            borderColor:'#111',
-            tension:0.1
-          }]
-        },
-        options:{
-          responsive:true,
-          plugins:{legend:{display:false}},
-          scales:{y:{beginAtZero:false}}
-        }
-      });
-    }
-
-    /* ========== 5. 工具：SMA  ========== */
+    /* 工具：SMA */
     function SMA(arr, n){
-      const out = [];
-      let sum = 0;
+      const out = []; let sum = 0;
       for(let i = 0; i < arr.length; i++){
         sum += arr[i];
-        if(i >= n) sum -= arr[i-n];
-        out[i] = i >= n-1 ? sum/n : null;
+        if(i >= n) sum -= arr[i - n];
+        out[i] = i >= n - 1 ? sum / n : null;
       }
       return out;
     }
 
-    /* ========== 6. 工具：生成假 K 线 ========== */
+    /* 工具：假数据 */
     function genMockKline(count){
       const out = []; let base = 150;
-      for(let i = 0; i < count; i++){
-        base += (Math.random()-0.49)*2;
-        out.push(Number(base.toFixed(2)));
-      }
+      for(let i = 0; i < count; i++){ base += (Math.random() - 0.49) * 2; out.push(Number(base.toFixed(2))); }
       return out;
     }
 
-    /* ========== 7. 默认自动查一次 ========== */
+    /* 默认自动查一次 */
     fetchData();
   </script>
 </body>
