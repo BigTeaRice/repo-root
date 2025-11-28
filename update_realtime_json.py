@@ -19,6 +19,7 @@ def fetch_yf(sym, bar='15m', days=30):
     return df
 
 def calc_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    """前端全套技术指标"""
     c = df['close']
     df['MA5'] = c.rolling(5).mean()
     df['MA10'] = c.rolling(10).mean()
@@ -37,7 +38,7 @@ def calc_indicators(df: pd.DataFrame) -> pd.DataFrame:
     body = (df['close'] - df['open']).abs()
     hl2 = df['high'] - df['low']
     df['DOJI'] = (hl2 > 0) & (body / hl2 < 0.001)
-    return df.dropna(thresh=5)
+    return df.dropna(thresh=5)   # 至少 5 栏有值即可
 
 def main():
     os.makedirs("docs/data", exist_ok=True)
