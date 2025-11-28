@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>零后端即時行情 + 全套技術指標</title>
+<title>零后端行情 + 回测</title>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <style>
-:root{--bg:#f4f6fa;--card:#fff;--text:#333;--accent:#2962ff}
+:root{--bg:#f4f6fa;--card:#fff;--text:#333;--accent:#2962ff;--profit:#0f0;--loss:#f00}
 @media (prefers-color-scheme: dark){
- :root{--bg:#121212;--card:#1e1e1e;--text:#eee;--accent:#82b1ff'}
+ :root{--bg:#121212;--card:#1e1e1e;--text:#eee;--accent:#82b1ff;--profit:#4caf50;--loss:#f44336}
 }
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto;background:var(--bg);color:var(--text)}
 .container{max-width:1200px;margin:20px auto;padding:10px}
@@ -23,12 +23,14 @@ button{padding:10px 16px;border:none;border-radius:6px;background:var(--accent);
 .item span:first-child{opacity:.7}
 .item span:last-child{font-weight:600}}
 #time{font-size:.8rem;opacity:.6;text-align:right;margin-top:8px}
-.btn-row{margin-top:10px;display:flex;gap:10px}
+.btn-row{margin-top:10px;display:flex;gap:10px;justify-content:flex-end}
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>零後端即時行情 + 全套技術指標</h1>
+  <h1>零后端行情 + 回测</h1>
+
+  <!-- 查询 + 按钮右对齐 -->
   <div class="card row">
     <select id="market">
       <option value="us">美股 (15min)</option>
@@ -49,6 +51,12 @@ button{padding:10px 16px;border:none;border-radius:6px;background:var(--accent);
     <button onclick="fetchData()">查询</button>
   </div>
 
+  <!-- 按钮右对齐：回测 + AI -->
+  <div class="card btn-row">
+    <button onclick="backtest()">回测</button>
+    <button onclick="aiAnalysis()">人工智能分析</button>
+  </div>
+
   <div class="card">
     <div class="grid" id="info"></div>
     <div id="time"></div>
@@ -58,15 +66,15 @@ button{padding:10px 16px;border:none;border-radius:6px;background:var(--accent);
     <div id="chart"></div>
   </div>
 
-  <div class="card btn-row">
-    <button onclick="location.href='/'">回主頁</button>
-    <button onclick="aiAnalysis()">人工智能分析</button>
+  <div class="card" id="backtest-card" style="display:none;">
+    <h3>回测结果</h3>
+    <div class="grid" id="backtest-info"></div>
   </div>
 </div>
 
 <script>
 const $ = q => document.querySelector(q);
-const market = $('#market'), symbol = $('#symbol'), range = $('#range'), info = $('#info'), myChart = echarts.init($('#chart'));
+const market = $('#market'), symbol = $('#symbol'), range = $('#range'), info = $('#info'), myChart = echarts.init($('#chart')), backtestCard = $('#backtest-card'), backtestInfo = $('#backtest-info'));
 
 // 30 秒自動刷新
 setInterval(() => {
@@ -74,7 +82,6 @@ setInterval(() => {
 }, 30000);
 
 // ============= 数据源 =============
-// 用 GitHub Pages 后端 JSON（零 CORS 问题）
 async function fetchData() {
   const sym = symbol.value.trim().toUpperCase();
   const mkt = market.value;
@@ -87,7 +94,6 @@ async function fetchData() {
     myChart.clear();
     return;
   }
-  // 按时间范围过滤
   const now = new Date();
   const cut = new Date(now - parseRange(range.value));
   const bars = json.data.filter(it => new Date(it.datetime) >= cut);
@@ -102,110 +108,53 @@ async function fetchData() {
   $('#time').innerText = '更新: ' + new Date().toLocaleString();
 }
 
-// 解析时间范围
-function parseRange(val) {
-  const map = { '1d': 1, '5d': 5, '1mo': 30, '3mo': 90, '6mo': 180, '1y': 365, '2y': 730, '5y': 1825, '10y': 3650 };
-  return (map[val] || 30) * 24 * 60 * 60 * 1000;
-}
-
-// ============= 技術指標（前端即時計算） =============
-function calcIndicators(bars) {
-  const n = bars.length;
-  const c = bars.map(x => x.c);
-  const h = bars.map(x => x.h);
-  const l = bars.map(x => x.l);
-  const o = bars.map(x => x.o);
-
-  // 1) MA
-  const ma5 = [], ma10 = [], ma20 = [];
-  for (let i = 0; i < n; i++) {
-    ma5.push(i >= 4 ? avg(c.slice(i - 4, i + 1)) : null);
-    ma10.push(i >= 9 ? avg(c.slice(i - 9, i + 1)) : null);
-    ma20.push(i >= 19 ? avg(c.slice(i - 19, i + 1)) : null);
+// ============= 回测功能 =============
+async function backtest() {
+  const sym = symbol.value.trim().toUpperCase();
+  const mkt = market.value;
+  if (!sym) return;
+  const file = sym.toLowerCase().replace('.', '_') + '.json';
+  const json = await fetch(url).then(r => r.json()).catch(() => null);
+  if (!json || !json.data) {
+    backtestInfo.innerHTML = '<div class="item">无数据</div>';
+    backtestCard.style.display = 'none';
+    return;
   }
-
-  // 2) RSI(14)
-  const rsi = [null];
-  for (let i = 1; i < n; i++) {
-    const delta = c[i] - c[i - 1];
-    const gain = Math.max(delta, 0);
-    const loss = Math.max(-delta, 0);
-    if (i === 1) { rsi.push(50); continue; }
-    const avgGain = (rsi[i - 1] / 100 * (i - 1) + gain) / i;
-    const avgLoss = ((100 - rsi[i - 1]) / 100 * (i - 1) + loss) / i;
-    const rs = avgGain / avgLoss;
-    rsi.push(100 - (100 / (1 + rs)));
+  const now = new Date();
+  const cut = new Date(now - parseRange(range.value));
+  const bars = json.data.filter(it => new Date(it.datetime) >= cut);
+  if (bars.length === 0) {
+    backtestInfo.innerHTML = '<div class="item">无数据</div>';
+    backtestCard.style.display = 'none';
+    return;
   }
-
-  // 3) ATR(14)
-  const atr = [null];
-  for (let i = 1; i < n; i++) {
-    const tr = Math.max(h[i] - l[i], Math.abs(h[i] - c[i - 1]), Math.abs(l[i] - c[i - 1]));
-    atr.push(i === 1 ? tr : (atr[i - 1] * 13 + tr) / 14);
+  // 回测：MA 金叉死叉
+  const trades = [];
+  let holding = false, entryPrice = 0;
+  for (let i = 1; i < bars.length; i++) {
+    const prev = bars[i - 1], curr = bars[i];
+    const ma5 = avg(bars.slice(Math.max(0, i - 4), i + 1).map(it => it.c));
+    const ma20 = avg(bars.slice(Math.max(0, i - 19), i + 1).map(it => it.c));
+    if (!holding && ma5 > ma20 && prev.c < prev.ma20) { // 金叉
+      holding = true;
+      entryPrice = curr.c;
+      trades.push({ type: 'BUY', price: entryPrice, date: curr.t });
+    } else if (holding && ma5 < ma20 && prev.c > prev.ma20) { // 死叉
+      holding = false;
+      const profit = (curr.c - entryPrice) / entryPrice;
+      trades.push({ type: 'SELL', price: curr.c, profit: profit, date: curr.t });
+    }
   }
-
-  // 4) MTM(12)
-  const mtm = [];
-  for (let i = 0; i < n; i++) mtm.push(i >= 11 ? c[i] / c[i - 11] - 1 : null);
-
-  // 5) Doji 檢測
-  const doji = bars.map((it, i) => {
-    const body = Math.abs(it.c - it.o);
-    const hl = it.h - it.l;
-    return hl > 0 && body / hl < 0.001;
-  });
-
-  return { ma5, ma10, ma20, rsi, atr, mtm, doji };
-}
-
-function avg(arr) {
-  return arr.reduce((a, b) => a + b, 0) / arr.length;
-}
-
-// ============= 渲染 =============
-async function renderInfo(bars, ind) {
-  const last = bars[bars.length - 1];
-  const rsi = ind.rsi[ind.rsi.length - 1];
-  const atr = ind.atr[ind.atr.length - 1];
-  const mtm = ind.mtm[ind.mtm.length - 1];
-  const isDoji = ind.doji[ind.doji.length - 1];
-  info.innerHTML = `
-    <div class="item"><span>最新價</span><span>${last.c.toFixed(2)}</span></div>
-    <div class="item"><span>漲跌幅</span><span style="color:${last.c >= last.o ? '#0f0' : '#f00'}">${((last.c - last.o) / last.o * 100).toFixed(2)}%</span></div>
-    <div class="item"><span>RSI(14)</span><span>${rsi ? rsi.toFixed(2) : '--'}</span></div>
-    <div class="item"><span>ATR(14)</span><span>${atr ? atr.toFixed(2) : '--'}</span></div>
-    <div class="item"><span>MTM(12)</span><span>${mtm ? (mtm * 100).toFixed(2) + '%' : '--'}</span></div>
-    <div class="item"><span>十字星</span><span>${isDoji ? '✅' : '❌'}</span></div>
-    <div class="item"><span>MA5</span><span>${ind.ma5[ind.ma5.length - 1]?.toFixed(2) || '--'}</span></div>
-    <div class="item"><span>MA10</span><span>${ind.ma10[ind.ma10.length - 1]?.toFixed(2) || '--'}</span></div>
-    <div class="item"><span>MA20</span><span>${ind.ma20[ind.ma20.length - 1]?.toFixed(2) || '--'}</span></div>
-  '>;
-}
-
-function renderChart(bars, ind) {
-  const times = bars.map(it => it.t.toLocaleTimeString());
-  const c = bars.map(it => it.c);
-  const ma5 = ind.ma5;
-  const ma10 = ind.ma10;
-  const ma20 = ind.ma20;
-  const vol = bars.map(it => it.v);
-
-  myChart.setOption({
-    title: { text: `${symbol.value}  K線與技術指標`, left: 'center' },
-    tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
-    legend: { data: ['K', 'MA5', 'MA10', 'MA20'], top: 25 },
-    grid: [{ left: '10%', right: '8%', top: '15%', height: '55%' }, { left: '10%', right: '8%', top: '75%', height: '12%' }],
-    xAxis: [{ type: 'category', data: times, scale: true }, { type: 'category', gridIndex: 1, data: times, scale: true }],
-    yAxis: [{ type: 'value', scale: true }, { type: 'value', scale: true, gridIndex: 1 }],
-    dataZoom: [{ type: 'inside', xAxisIndex: [0, 1], start: 70, end: 100 }, { type: 'slider', xAxisIndex: [0, 1], start: 70, end: 100, top: '90%' }],
-    series: [
-      { name: 'K', type: 'candlestick', data: bars.map(it => [it.o, it.c, it.l, it.h]), itemStyle: { color: '#ef232a', color0: '#14b143' } },
-      { name: 'MA5', type: 'line', data: ma5, smooth: true, lineStyle: { width: 1.5, color: '#c23531' }, symbol: 'none' },
-      { name: 'MA10', type: 'line', data: ma10, smooth: true, lineStyle: { width: 1.5, color: '#ff9800' }, symbol: 'none' },
-      { name: 'MA20', type: 'line', data: ma20, smooth: true, lineStyle: { width: 1.5, color: '#2c3e50' }, symbol: 'none' },
-      { name: 'Volume', type: 'bar', xAxisIndex: 1, yAxisIndex: 1, data: vol, itemStyle: { color: vol.map((_, i) => bars[i].c >= bars[i].o ? '#ef232a' : '#14b143') } }
-    ]
-  });
+  const win = trades.filter(t => t.type === 'SELL' && t.profit > 0).length;
+  const total = trades.filter(t => t.type === 'SELL').length;
+  const winRate = total ? (win / total * 100).toFixed(1) : '0.0';
+  const pnl = trades.filter(t => t.type === 'SELL').reduce((s, t) => s + t.profit, 0);
+  backtestInfo.innerHTML = `
+    <div class="item"><span>交易次数</span><span>${total}</span></div>
+    <div class="item"><span>胜率</span><span>${winRate}%</span></div>
+    <div class="item"><span>总盈亏</span><span style="color:${pnl >= 0 ? 'var(--profit)' : 'var(--loss)'}}">${(pnl * 100).toFixed(2)}%</span></div>
+  `;
+  backtestCard.style.display = 'block';
 }
 
 // ============= 新增按钮功能 =============
