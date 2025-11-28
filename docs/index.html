@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>股票分析工具 - 零后端</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
   <style>
     :root{--primary:#111;--accent:#f59331;--bg:#f7f7f7;--card:#fff;}
     *{box-sizing:border-box;}
@@ -20,7 +20,7 @@
     .indicator-grid div{display:flex;justify-content:space-between;}
     .price{font-size:28px;font-weight:700;color:var(--accent);}
     .change{font-size:16px;}
-    canvas{background:var(--card);border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin:0 16px 16px;}
+    #mainChart,#volChart{background:var(--card);border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin:0 16px 16px;}
     #log{background:var(--card);margin:16px;border-radius:6px;padding:12px;font-size:13px;white-space:pre-wrap;height:120px;overflow:auto;}
     footer{position:fixed;bottom:0;left:0;right:0;background:var(--primary);display:flex;justify-content:center;gap:20px;padding:10px;}
     footer a{color:#fff;text-decoration:none;padding:8px 16px;background:#333;border-radius:4px;font-size:14px;}
@@ -70,8 +70,8 @@
 
     <!-- 右侧主图+副图 -->
     <div class="card" style="flex:1 1 600px;">
-      <canvas id="mainChart" height="360"></canvas>
-      <canvas id="volChart" height="180"></canvas>
+      <div id="mainChart" style="height:360px;margin-bottom:16px;"></div>
+      <div id="volChart" style="height:180px;"></div>
     </div>
   </div>
 
@@ -146,65 +146,79 @@
       document.getElementById('mtm').textContent  = mtm.toFixed(2);
     }
 
-    /* --------- 画图表 --------- */
+    /* --------- ECharts 画图 --------- */
     function drawCharts(ohlcv){
-      const labels = ohlcv.map((_,i)=>i);
-      const indSel = Array.from(document.getElementById('ind').selectedOptions).map(o=>o.value);
+      const dates = ohlcv.map(d=>d.t);
+      const ohlc    = ohlcv.map(d=>[d.o,d.c,d.l,d.h]);
+      const vols    = ohlcv.map(d=>d.v);
+      const indSel  = Array.from(document.getElementById('ind').selectedOptions).map(o=>o.value);
 
-      // 1. 主图：价格 + MA + 布林 + RSI + MACD（多轴混合）
-      const mainData = {
-        labels,
-        datasets: [{label: 'Close', data: priceArr, borderColor: '#111', backgroundColor: 'rgba(17,17,17,.05)', yAxisID: 'y', order: 0}]
+      // 1. 主图：K线 + MA + 布林 + RSI + MACD + Doji散射
+      const mainOption = {
+        animation: false,
+        legend: {data:['K线','MA5','MA10','MA20','RSI','MACD','Doji','UB','LB'], inactiveColor:'#777', textStyle:{color:'#333'}},
+        tooltip: {trigger: 'axis', axisPointer: {type: 'cross'}, borderWidth:1, borderColor:'#ccc', padding:10, textStyle:{color:'#333'}},
+        axisPointer: {link:[{xAxisIndex:'all'}], label:{backgroundColor:'#777'}},
+        grid: [{left:'10%',right:'8%',top:'10%',height:'60%'}],
+        xAxis: [{type:'category',data:dates,scale:true,boundaryGap:false,axisLine:{onZero:false},splitLine:{show:false},min:'dataMin',max:'dataMax'}],
+        yAxis: [{scale:true,splitArea:{show:true}}],
+        dataZoom: [{type:'inside',xAxisIndex:[0],start:50,end:100}],
+        series: [
+          {name:'K线',type:'candlestick',data:ohlc,itemStyle:{color:'#ef232a',color0:'#14b143',borderColor:'#ef232a',borderColor0:'#14b143'}},
+          {name:'RSI',type:'line',data:RSI(priceArr,14),lineStyle:{width:1.5,color:'#ff9800'},symbol:'none',yAxisIndex:0},
+          {name:'MACD',type:'line',data:MACD(priceArr).macd,lineStyle:{width:1.5,color:'#9c27b0'},symbol:'none',yAxisIndex:0}
+        ]
       };
       if(indSel.includes('MA')){
         const ma5 = SMA(priceArr,5), ma10 = SMA(priceArr,10), ma20 = SMA(priceArr,20);
-        mainData.datasets.push(
-          {label: 'MA5',  data: ma5,  borderColor: '#f59331', borderWidth: 1.5, pointRadius: 0, yAxisID: 'y', order: 1},
-          {label: 'MA10', data: ma10, borderColor: '#43a047', borderWidth: 1.5, pointRadius: 0, yAxisID: 'y', order: 1},
-          {label: 'MA20', data: ma20, borderColor: '#1976d2', borderWidth: 1.5, pointRadius: 0, yAxisID: 'y', order: 1}
+        mainOption.series.push(
+          {name:'MA5',type:'line',data:ma5,lineStyle:{width:1.5,color:'#f59331'},symbol:'none'},
+          {name:'MA10',type:'line',data:ma10,lineStyle:{width:1.5,color:'#4ecdc4'},symbol:'none'},
+          {name:'MA20',type:'line',data:ma20,lineStyle:{width:1.5,color:'#45b7d1'},symbol:'none'}
         );
       }
       if(indSel.includes('BB')){
         const bb = BB(priceArr,20);
-        mainData.datasets.push(
-          {label: 'UB', data: bb.ub, borderColor: 'rgba(244,67,54,.6)', borderWidth: 1, pointRadius: 0, yAxisID: 'y', order: 1},
-          {label: 'LB', data: bb.lb, borderColor: 'rgba(244,67,54,.6)', borderWidth: 1, pointRadius: 0, yAxisID: 'y', order: 1}
+        mainOption.series.push(
+          {name:'UB',type:'line',data:bb.ub,lineStyle:{width:1,color:'#ffa726',type:'dashed'},symbol:'none'},
+          {name:'LB',type:'line',data:bb.lb,lineStyle:{width:1,color:'#ffa726',type:'dashed'},symbol:'none'}
         );
       }
-      if(indSel.includes('RSI')){
-        const rsi = RSI(priceArr,14);
-        mainData.datasets.push(
-          {label: 'RSI(14)', data: rsi, borderColor: '#ff9800', borderWidth: 1.5, pointRadius: 0, yAxisID: 'y1', order: 1}
-        );
-      }
-      if(indSel.includes('MACD')){
-        const macd = MACD(priceArr);
-        mainData.datasets.push(
-          {label: 'MACD', data: macd.macd, borderColor: '#9c27b0', borderWidth: 1.5, pointRadius: 0, yAxisID: 'y2', order: 1}
-        );
-      }
+      // Doji 散射
+      const dojiData = ohlcv.map((d,i)=>(Math.abs(d.o-d.c)/(d.h-d.l)<0.1?[i,d.h]:null)).filter(v=>v);
+      if(dojiData.length) mainOption.series.push({name:'Doji',type:'scatter',symbol:'diamond',symbolSize:8,itemStyle:{color:'#ff9800'},data:dojiData});
 
-      if(mainChart) mainChart.destroy();
-      mainChart = new Chart(document.getElementById('mainChart'),{
-        type: 'line',
-        data: mainData,
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          interaction: {mode: 'index', intersect: false},
-          scales: {
-            y: {type: 'linear', display: true, position: 'left', grid: {color: 'rgba(0,0,0,.05)'}},
-            y1: {type: 'linear', display: indSel.includes('RSI'), position: 'right', grid: {drawOnChartArea: false}, ticks: {min: 0, max: 100}},
-            y2: {type: 'linear', display: indSel.includes('MACD'), position: 'right', grid: {drawOnChartArea: false}}
-          }
-        }
+      if(!mainChart) mainChart = echarts.init(document.getElementById('mainChart'));
+      mainChart.setOption(mainOption);
+
+      // 2. 副图：独立成交量（颜色随涨跌）
+      const volOption = {
+        animation: false,
+        grid: [{left:'10%',right:'8%',top:'10%',height:'70%'}],
+        xAxis: [{type:'category',data:dates,scale:true,boundaryGap:false,axisLine:{onZero:false},splitLine:{show:false},axisLabel:{show:false}}],
+        yAxis: [{type:'value',splitNumber:2,axisLabel:{show:true,formatter:v=>(v/1e6)+'M'},axisLine:{show:false},axisTick:{show:false},splitLine:{show:false}}],
+        series: [{
+          name:'Volume',type:'bar',data:vols.map((v,i)=>({value:v,itemStyle:{color:ohlcv[i].c>ohlcv[i].o?'#ef232a':'#14b143'}})),
+          barWidth:'60%'
+        }]
+      };
+      if(!volChart) volChart = echarts.init(document.getElementById('volChart'));
+      volChart.setOption(volOption);
+
+      // 联动缩放
+      mainChart.on('dataZoom', function (params) {
+        volChart.dispatchAction({
+          type: 'dataZoom',
+          start: params.start,
+          end: params.end
+        });
       });
-
-      // 2. 副图：独立成交量
-      if(volChart) volChart.destroy();
-      volChart = new Chart(document.getElementById('volChart'),{
-        type: 'bar',
-        data: {labels, datasets: [{label: 'Volume', data: volArr, backgroundColor: 'rgba(66,133,244,.25)'}]},
-        options: {responsive: true, maintainAspectRatio: false, scales: {y: {ticks: {callback: v=>(v/1e6)+'M'}}}}
+      volChart.on('dataZoom', function (params) {
+        mainChart.dispatchAction({
+          type: 'dataZoom',
+          start: params.start,
+          end: params.end
+        });
       });
     }
 
