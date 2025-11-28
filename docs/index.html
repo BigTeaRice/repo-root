@@ -14,7 +14,8 @@
     .top-bar input,.top-bar select,.top-bar button{height:36px;font-size:14px;}
     .top-bar button{padding:0 16px;background:var(--primary);color:#fff;border:0;border-radius:4px;cursor:pointer;}
     .top-bar button:hover{background:#333;}
-    .card{background:var(--card);border-radius:6px;padding:16px;margin:16px;box-shadow:0 1px 3px rgba(0,0,0,.1);}
+    .container{display:flex;flex-wrap:wrap;padding:16px;gap:16px;}
+    .card{flex:1 1 300px;background:var(--card);border-radius:6px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.1);}
     .indicator-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;font-size:13px;}
     .indicator-grid div{display:flex;justify-content:space-between;}
     .price{font-size:28px;font-weight:700;color:var(--accent);}
@@ -48,24 +49,29 @@
     <button onclick="fetchData()">查询</button>
   </div>
 
-  <!-- 实时卡片 -->
-  <div class="card">
-    <div class="price" id="price">--</div>
-    <div class="change" id="change">--</div>
-    <div class="indicator-grid">
-      <div><span>MA5</span><span id="ma5">--</span></div>
-      <div><span>MA20</span><span id="ma20">--</span></div>
-      <div><span>RSI(14)</span><span id="rsi">--</span></div>
-      <div><span>ATR(14)</span><span id="atr">--</span></div>
-      <div><span>成交量</span><span id="vol">--</span></div>
-      <div><span>波动率</span><span id="volat">--</span></div>
+  <div class="container">
+    <!-- 左侧实时卡片 -->
+    <div class="card" style="flex:0 0 320px;">
+      <div class="price" id="price">--</div>
+      <div class="change" id="change">--</div>
+      <hr>
+      <div class="indicator-grid">
+        <div><span>MA5</span><span id="ma5">--</span></div>
+        <div><span>MA10</span><span id="ma10">--</span></div>
+        <div><span>MA20</span><span id="ma20">--</span></div>
+        <div><span>RSI(14)</span><span id="rsi">--</span></div>
+        <div><span>ATR(14)</span><span id="atr">--</span></div>
+        <div><span>成交量</span><span id="vol">--</span></div>
+        <div><span>波动率</span><span id="volat">--</span></div>
+      </div>
+    </div>
+
+    <!-- 右侧主图 -->
+    <div class="card" style="flex:1 1 600px;">
+      <canvas id="mainChart" height="360"></canvas>
+      <canvas id="volChart" height="180"></canvas>
     </div>
   </div>
-
-  <!-- 主图：价格 + MA + 布林 + RSI + MACD（多轴混合） -->
-  <canvas id="mainChart" height="360"></canvas>
-  <!-- 副图：独立成交量 -->
-  <canvas id="volChart" height="180"></canvas>
 
   <div id="log"></div>
 
@@ -117,13 +123,14 @@
       document.getElementById('change').textContent = `${chg>0?'+':''}${chg.toFixed(2)} (${chgP}%)`;
       document.getElementById('change').style.color = chg>0?'#e53e3e':'#4caf50';
 
-      const ma5 = SMA(priceArr,5), ma20 = SMA(priceArr,20);
+      const ma5 = SMA(priceArr,5), ma10 = SMA(priceArr,10), ma20 = SMA(priceArr,20);
       const rsi = RSI(priceArr,14);
       const atr = ATR(priceArr,14);
       const vol = volArr.slice(-1)[0];
       const volat = (ATR(priceArr,14)/last.c*100).toFixed(2);
 
       document.getElementById('ma5').textContent  = ma5[ma5.length-1]?.toFixed(2) ?? '--';
+      document.getElementById('ma10').textContent = ma10[ma10.length-1]?.toFixed(2) ?? '--';
       document.getElementById('ma20').textContent = ma20[ma20.length-1]?.toFixed(2) ?? '--';
       document.getElementById('rsi').textContent  = rsi[rsi.length-1]?.toFixed(2) ?? '--';
       document.getElementById('atr').textContent  = atr[atr.length-1]?.toFixed(2) ?? '--';
@@ -142,10 +149,11 @@
         datasets: [{label: 'Close', data: priceArr, borderColor: '#111', backgroundColor: 'rgba(17,17,17,.05)', yAxisID: 'y', order: 0}]
       };
       if(indSel.includes('MA')){
-        const ma5 = SMA(priceArr,5), ma20 = SMA(priceArr,20);
+        const ma5 = SMA(priceArr,5), ma10 = SMA(priceArr,10), ma20 = SMA(priceArr,20);
         mainData.datasets.push(
           {label: 'MA5',  data: ma5,  borderColor: '#f59331', borderWidth: 1.5, pointRadius: 0, yAxisID: 'y', order: 1},
-          {label: 'MA20', data: ma20, borderColor: '#43a047', borderWidth: 1.5, pointRadius: 0, yAxisID: 'y', order: 1}
+          {label: 'MA10', data: ma10, borderColor: '#43a047', borderWidth: 1.5, pointRadius: 0, yAxisID: 'y', order: 1},
+          {label: 'MA20', data: ma20, borderColor: '#1976d2', borderWidth: 1.5, pointRadius: 0, yAxisID: 'y', order: 1}
         );
       }
       if(indSel.includes('BB')){
@@ -164,7 +172,7 @@
       if(indSel.includes('MACD')){
         const macd = MACD(priceArr);
         mainData.datasets.push(
-          {label: 'MACD', data: macd.macd, borderColor: '#1976d2', borderWidth: 1.5, pointRadius: 0, yAxisID: 'y2', order: 1}
+          {label: 'MACD', data: macd.macd, borderColor: '#9c27b0', borderWidth: 1.5, pointRadius: 0, yAxisID: 'y2', order: 1}
         );
       }
 
