@@ -40,12 +40,11 @@
     const logBox = document.getElementById('log');
     function print(...args){ logBox.textContent += args.join(' ') + '\n'; logBox.scrollTop = logBox.scrollHeight; }
 
-    /* 拉数据 */
     async function fetchData(){
       const sym = document.getElementById('symbol').value;
       print(`拉取 ${sym.toUpperCase()} 行情...`);
       try{
-        const res = await fetch(`./data/${sym}_15m.json?t=${Date.now()}`);
+        const res = await fetch(`./data/${sym}.json?t=${Date.now()}`);
         if(!res.ok) throw new Error('静态文件不存在');
         const arr = await res.json();
         renderChart(arr);
@@ -57,7 +56,6 @@
       }
     }
 
-    /* 画 Chart */
     function renderChart(priceArr){
       const labels = priceArr.map((_,i)=>i);
       if(chart) chart.destroy();
@@ -68,7 +66,6 @@
       });
     }
 
-    /* 回测：MA 金叉死叉 */
     function backtest(){
       if(!chart || !chart.data.datasets.length){ print('❌ 请先查询数据'); return; }
       const data = chart.data.datasets[0].data;
@@ -91,12 +88,10 @@
       print(`\n🧾 交易 ${trades} 次，最终净值 ${final.toFixed(2)}，收益率 ${((final/10000-1)*100).toFixed(2)}%`);
     }
 
-    /* AI 分析占位 */
     function aiAnalysis(){
       print('🤖 当前策略为 MA 金叉死叉，建议在震荡市加入 RSI 过滤，减少假信号。');
     }
 
-    /* 工具：SMA */
     function SMA(arr, n){
       const out = []; let sum = 0;
       for(let i = 0; i < arr.length; i++){
@@ -107,14 +102,12 @@
       return out;
     }
 
-    /* 工具：假数据 */
     function genMockKline(count){
       const out = []; let base = 150;
       for(let i = 0; i < count; i++){ base += (Math.random() - 0.49) * 2; out.push(Number(base.toFixed(2))); }
       return out;
     }
 
-    /* 默认自动查一次 */
     fetchData();
   </script>
 </body>
