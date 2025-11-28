@@ -41,7 +41,7 @@ def calc_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
 def main():
     os.makedirs("docs/data", exist_ok=True)
-    for sym, region in STOCK.items():
+    for sym, region in STOCKS.items():
         try:
             df = fetch_yf(sym, bar='15m', days=30)
             df = calc_indicators(df)
