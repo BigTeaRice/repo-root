@@ -6,7 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
   <style>
-    /* 同前一份完整样式 */
     :root{--primary:#111;--accent:#f59331;--bg:#f7f7f7;--card:#fff;}
     *{box-sizing:border-box;}
     body{margin:0;padding:0 0 60px;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;}
@@ -109,8 +108,7 @@
         drawCharts(raw);
         print(`✅ 后端返回 ${raw.length} 条记录`);
       }catch(e){
-        // ② 后端不可用 → 立即用随机数据生成完整图表
-        print('⚠️ 后端不可用，用随机数据演示');
+        print('⚠️ 后端不可用，用假数据演示');
         const mock = genMockOHLCV(200);
         priceArr = mock.map(o=>o.c);
         volArr   = mock.map(o=>o.v);
@@ -170,8 +168,8 @@
         dataZoom: [{type:'inside',xAxisIndex:[0],start:50,end:100}],
         series: [
           {name:'K线',type:'candlestick',data:ohlc,itemStyle:{color:'#ef232a',color0:'#14b143',borderColor:'#ef232a',borderColor0:'#14b143'}},
-          {name:'RSI',type:'line',data:ohlcv.map(d=>d.rsi??null),lineStyle:{width:1.5,color:'#ff9800'},symbol:'none'},
-          {name:'MACD',type:'line',data:ohlcv.map(d=>d.macd??null),lineStyle:{width:1.5,color:'#9c27b0'},symbol:'none'}
+          {name:'RSI',type:'line',data:ohlcv.map(d=>d.rsi??null),lineStyle:{width:1.5,color:'#ff9800'},symbol:'none',yAxisIndex:0},
+          {name:'MACD',type:'line',data:ohlcv.map(d=>d.macd??null),lineStyle:{width:1.5,color:'#9c27b0'},symbol:'none',yAxisIndex:0}
         ]
       };
       if(indSel.includes('MA')){
