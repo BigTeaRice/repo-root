@@ -4,35 +4,56 @@
   <meta charset="UTF-8">
   <title>股票分析工具 - 前后端</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- 使用 Tailwind 快速建立響應式 UI -->
+  <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
   <style>
-    :root{--primary:#111;--accent:#f59331;--bg:#f7f7f7;--card:#fff;}
-    *{box-sizing:border-box;}
-    body{margin:0;padding:0 0 60px;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;}
-    header{background:var(--primary);color:#fff;padding:12px 16px;font-size:18px;font-weight:700;position:sticky;top:0;z-index:10;}
-    .top-bar{display:flex;flex-wrap:wrap;gap:10px;padding:12px 16px;background:var(--card);border-bottom:1px solid #e5e5e5;align-items:center;}
-    .top-bar input,.top-bar select,.top-bar button{height:36px;font-size:14px;}
-    .top-bar button{padding:0 16px;background:var(--primary);color:#fff;border:0;border-radius:4px;cursor:pointer;}
-    .top-bar button:hover{background:#333;}
-    .container{display:flex;flex-wrap:wrap;padding:16px;gap:16px;}
-    .card{flex:1 1 300px;background:var(--card);border-radius:6px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.1);}
-    .indicator-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;font-size:13px;}
-    .indicator-grid div{display:flex;justify-content:space-between;}
-    .price{font-size:28px;font-weight:700;color:var(--accent);}
-    .change{font-size:16px;}
-    #mainChart,#volChart{background:var(--card);border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin:0 16px 16px;}
-    #log{background:var(--card);margin:16px;border-radius:6px;padding:12px;font-size:13px;white-space:pre-wrap;height:120px;overflow:auto;}
-    footer{position:fixed;bottom:0;left:0;right:0;background:var(--primary);display:flex;justify-content:center;gap:20px;padding:10px;}
-    footer a{color:#fff;text-decoration:none;padding:8px 16px;background:#333;border-radius:4px;font-size:14px;}
-    footer a:hover{background:#555;}
+    /* 自訂顏色變量 */
+    :root {
+      --primary: #111;
+      --accent: #f59331;
+      --bg: #f7f7f7;
+      --card: #fff;
+    }
+    /* 確保 ECharts 容器有尺寸 */
+    #mainChart, #volChart {
+      background: var(--card);
+      border-radius: 6px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, .1);
+      margin: 0 16px 16px;
+      min-height: 200px; /* 確保最小高度 */
+    }
+    /* 自訂滾動條和日誌框樣式 */
+    #log {
+      background: #eee;
+      margin: 16px;
+      border-radius: 6px;
+      padding: 12px;
+      font-size: 13px;
+      white-space: pre-wrap;
+      height: 120px;
+      overflow: auto;
+      border: 1px solid #ddd;
+    }
   </style>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'Noto Sans', 'sans-serif'],
+          },
+        },
+      }
+    }
+  </script>
 </head>
-<body>
-  <header>股票分析工具 - 前后端</header>
+<body class="bg-gray-100 font-sans p-0 m-0 pb-16">
+  <header class="bg-gray-800 text-white p-4 text-lg font-bold sticky top-0 z-10">股票分析工具 - 前后端 (Pages 靜態)</header>
 
-  <div class="top-bar">
-    <input id="symbol" type="text" placeholder="AAPL / 0700.HK" value="AAPL">
-    <select id="range">
+  <div class="flex flex-wrap gap-2 p-4 bg-white border-b border-gray-200 items-center">
+    <input id="symbol" type="text" placeholder="AAPL / 0700.HK" value="AAPL" class="p-2 border border-gray-300 rounded-md text-sm flex-grow min-w-[100px]">
+    <select id="range" class="p-2 border border-gray-300 rounded-md text-sm">
       <option value="1d">1 天</option>
       <option value="5d">5 天</option>
       <option value="30d" selected>30 天</option>
@@ -40,164 +61,242 @@
       <option value="180d">180 天</option>
       <option value="1y">1 年</option>
     </select>
-    <select id="ind" multiple title="Ctrl+多选">
+    <select id="ind" multiple title="Ctrl+多选" class="p-2 border border-gray-300 rounded-md text-sm max-w-[180px]">
       <option value="MA" selected>移动平均 (MA)</option>
       <option value="BB">布林带 (Bollinger)</option>
       <option value="RSI">相对强弱指标 (RSI)</option>
       <option value="MACD">MACD</option>
     </select>
-    <button onclick="fetchData()">查询</button>
+    <button onclick="fetchData()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm transition duration-150">查询</button>
   </div>
 
-  <div class="container">
-    <!-- 左侧实时卡片 -->
-    <div class="card" style="flex:0 0 320px;">
-      <div class="price" id="price">--</div>
-      <div class="change" id="change">--</div>
-      <hr>
-      <div class="indicator-grid">
-        <div><span>MA5</span><span id="ma5">--</span></div>
-        <div><span>MA10</span><span id="ma10">--</span></div>
-        <div><span>MA20</span><span id="ma20">--</span></div>
-        <div><span>RSI(14)</span><span id="rsi">--</span></div>
-        <div><span>ATR(14)</span><span id="atr">--</span></div>
-        <div><span>成交量</span><span id="vol">--</span></div>
-        <div><span>波动率</span><span id="volat">--</span></div>
-        <div><span>Doj信号</span><span id="doji">--</span></div>
-        <div><span>MTM信号</span><span id="mtm">--</span></div>
+  <div class="flex flex-wrap p-4 gap-4">
+    <!-- 左側即時卡片 -->
+    <div class="bg-white rounded-lg shadow-md p-4 flex-shrink-0 w-full sm:w-64">
+      <div class="text-3xl font-bold text-orange-500" id="price">--</div>
+      <div class="text-lg" id="change">--</div>
+      <hr class="my-3 border-gray-200">
+      <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-700">
+        <div><span>MA5</span><span id="ma5" class="float-right font-medium">--</span></div>
+        <div><span>MA10</span><span id="ma10" class="float-right font-medium">--</span></div>
+        <div><span>MA20</span><span id="ma20" class="float-right font-medium">--</span></div>
+        <div><span>RSI(14)</span><span id="rsi" class="float-right font-medium">--</span></div>
+        <div><span>ATR(14)</span><span id="atr" class="float-right font-medium">--</span></div>
+        <div><span>成交量</span><span id="vol" class="float-right font-medium">--</span></div>
+        <div><span>波動率</span><span id="volat" class="float-right font-medium">--</span></div>
+        <div><span>Doji信號</span><span id="doji" class="float-right font-medium">--</span></div>
+        <div><span>MTM信號</span><span id="mtm" class="float-right font-medium">--</span></div>
       </div>
     </div>
 
-    <!-- 右侧主图+副图 -->
-    <div class="card" style="flex:1 1 600px;">
-      <div id="mainChart" style="height:360px;margin-bottom:16px;"></div>
+    <!-- 右側主圖+副圖 -->
+    <div class="bg-white rounded-lg shadow-md flex-grow w-full min-w-[300px] p-4">
+      <div id="mainChart" style="height:360px;" class="mb-4"></div>
       <div id="volChart" style="height:180px;"></div>
     </div>
   </div>
 
-  <div id="log"></div>
+  <div id="log" class="text-gray-700"></div>
 
-  <!-- 底部固定导航 -->
-  <footer>
-    <a href="./">返回主頁</a>
-    <a href="./backtest.html">回测页面</a>
-    <a href="./ai.html">AI 分析</a>
+  <!-- 底部固定導航 -->
+  <footer class="fixed bottom-0 left-0 right-0 bg-gray-800 flex justify-center gap-4 p-3 shadow-lg z-10">
+    <a href="./" class="text-white text-sm bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-md transition duration-150">返回主頁</a>
+    <!-- 假設這些文件也存在或使用相同 index.html 模擬路由 -->
+    <a href="./backtest.html" onclick="print('回测页面模拟'); return false;" class="text-white text-sm bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-md transition duration-150">回测页面</a>
+    <a href="./ai.html" onclick="aiAnalysis(); return false;" class="text-white text-sm bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-md transition duration-150">AI 分析</a>
   </footer>
 
   <script>
-    /* --------- 工具 --------- */
+    /* --------- 工具函數 --------- */
     const logBox = document.getElementById('log');
-    function print(...args){ logBox.textContent += args.join(' ') + '\n'; logBox.scrollTop = logBox.scrollHeight; }
+    function print(...args){ 
+      logBox.textContent += args.join(' ') + '\n'; 
+      logBox.scrollTop = logBox.scrollHeight; 
+    }
+    
+    // 全域變數
+    let priceArr = [], volArr = [], ohlcvData = [], mainChart, volChart;
 
-    let priceArr = [], volArr = [], mainChart, volChart;
+    /* --------- 資料處理與獲取 --------- */
+    // Helper: 獲取後端 API URL
+    function getApiUrl(sym, range) {
+        // 判斷是否在本地或Codespaces上運行 (用於測試 app.py)
+        const isLocal = location.hostname === "localhost" || location.port === "5000";
+        if (isLocal) {
+            return `${location.protocol}//${location.hostname}:5000/api/kline?sym=${sym}&range=${range}`;
+        }
+        
+        // 假設您已部署 FastAPI 到獨立伺服器，您需要替換以下 URL
+        // 這裡暫時指向一個不會成功的 URL，以觸發假資料 fallback
+        // 如果您的 Fast API 部署在一個公共 URL (例如 Heroku, Render)，請在這裡替換
+        return `https://your-deployed-fastapi.com/api/kline?sym=${sym}&range=${range}`; 
+    }
 
-    /* --------- 拉数据 --------- */
+    // 核心拉取數據函數
     async function fetchData(){
       const sym = document.getElementById('symbol').value.trim();
       const range = document.getElementById('range').value;
-      print(`拉取 ${sym} ${range} 行情...`);
+      const apiUrl = getApiUrl(sym, range);
+      
+      print(`拉取 ${sym} ${range} 行情... API: ${apiUrl}`);
+      
       try{
-        // ① 先尝试后端 API（本地 5000 或 GitHub Codespaces 端口）
-        const apiUrl = `${location.protocol}//${location.hostname}:5000/api/kline?sym=${sym}&range=${range}`;
         const res = await fetch(apiUrl);
-        if(!res.ok) throw new Error('后端未启动');
+        
+        if(!res.ok) throw new Error(`API 錯誤: ${res.statusText}`);
+        
         const raw = await res.json();
-        priceArr = raw.map(d=>d.c);
-        volArr   = raw.map(d=>d.v);
-        updateCard(raw[raw.length-1]);
-        drawCharts(raw);
-        print(`✅ 后端返回 ${raw.length} 条记录`);
+        if (raw.length === 0) throw new Error('API 返回空數據');
+
+        ohlcvData = calculateIndicators(raw); // 計算指標
+        priceArr = ohlcvData.map(d=>d.c);
+        volArr   = ohlcvData.map(d=>d.v);
+
+        updateCard(ohlcvData[ohlcvData.length-1]);
+        drawCharts(ohlcvData);
+        print(`✅ 後端返回 ${raw.length} 條記錄並計算指標完成`);
+
       }catch(e){
-        print('⚠️ 后端不可用，用假数据演示');
+        print(`❌ 後端呼叫失敗或無效 (${e.message})，使用假數據演示。`);
         const mock = genMockOHLCV(200);
-        priceArr = mock.map(o=>o.c);
-        volArr   = mock.map(o=>o.v);
-        updateCard(mock[mock.length-1]);
-        drawCharts(mock);
+        ohlcvData = calculateIndicators(mock); // 對假數據也計算指標
+        priceArr = ohlcvData.map(d=>d.c);
+        volArr   = ohlcvData.map(d=>d.v);
+        updateCard(ohlcvData[ohlcvData.length-1]);
+        drawCharts(ohlcvData);
       }
+    }
+
+    // 將所有技術指標計算集中在此處，避免 app.py 和 index.html 邏輯重複
+    function calculateIndicators(data){
+        const closePrices = data.map(d => d.c);
+        const ohlcv = data;
+
+        // 1. MA
+        const ma5 = SMA(closePrices, 5);
+        const ma10 = SMA(closePrices, 10);
+        const ma20 = SMA(closePrices, 20);
+
+        // 2. BB (需要 MA20)
+        const bb = BB(closePrices, 20);
+
+        // 3. RSI
+        const rsi = RSI(closePrices, 14);
+
+        // 4. MACD
+        const macd = MACD(closePrices);
+
+        // 5. ATR (需要 OHLC)
+        const atr = ATR(ohlcv, 14);
+        
+        // 整合結果
+        return ohlcv.map((d, i) => ({
+            ...d,
+            ma5: ma5[i] ? ma5[i].toFixed(2) : null,
+            ma10: ma10[i] ? ma10[i].toFixed(2) : null,
+            ma20: ma20[i] ? ma20[i].toFixed(2) : null,
+            ub: bb.ub[i] ? bb.ub[i].toFixed(2) : null,
+            lb: bb.lb[i] ? bb.lb[i].toFixed(2) : null,
+            rsi: rsi[i] ? rsi[i].toFixed(2) : null,
+            atr: atr[i] ? atr[i].toFixed(2) : null,
+            macd: macd.macd[i] ? macd.macd[i].toFixed(2) : null,
+            signal: macd.signal[i] ? macd.signal[i].toFixed(2) : null,
+        })).filter(d => d.ma20 !== null); // 移除未計算出 MA20 的前期數據
     }
 
     /* --------- 更新卡片 --------- */
     function updateCard(last){
+      if(!priceArr.length || priceArr.length < 2) return;
+      
       const prev = priceArr[priceArr.length-2];
       const chg  = last.c - prev;
       const chgP = (chg/prev*100).toFixed(2);
+      
       document.getElementById('price').textContent = last.c.toFixed(2);
       document.getElementById('change').textContent = `${chg>0?'+':''}${chg.toFixed(2)} (${chgP}%)`;
-      document.getElementById('change').style.color = chg>0?'#e53e3e':'#4caf50';
+      document.getElementById('change').className = `text-lg ${chg>0?'text-red-600':'text-green-600'}`;
 
-      const ma5 = last.ma5 ?? '--';
-      const ma10 = last.ma10 ?? '--';
-      const ma20 = last.ma20 ?? '--';
-      const rsi  = last.rsi ?? '--';
-      const atr  = last.atr ?? '--';
-      const vol  = last.v;
-      const volat = (atr !== '--' ? (atr / last.c * 100).toFixed(2) : '--');
-
-      document.getElementById('ma5').textContent  = ma5;
-      document.getElementById('ma10').textContent = ma10;
-      document.getElementById('ma20').textContent = ma20;
-      document.getElementById('rsi').textContent  = rsi;
-      document.getElementById('atr').textContent  = atr;
-      document.getElementById('vol').textContent  = (vol/1e6).toFixed(1)+'M';
-      document.getElementById('volat').textContent= volat+'%';
+      document.getElementById('ma5').textContent  = last.ma5 ?? '--';
+      document.getElementById('ma10').textContent = last.ma10 ?? '--';
+      document.getElementById('ma20').textContent = last.ma20 ?? '--';
+      document.getElementById('rsi').textContent  = last.rsi ?? '--';
+      document.getElementById('atr').textContent  = last.atr ?? '--';
+      document.getElementById('vol').textContent  = (last.v/1e6).toFixed(1)+'M';
+      
+      const volat = (last.atr !== '--' && last.c > 0 ? (parseFloat(last.atr) / last.c * 100).toFixed(2) : '--');
+      document.getElementById('volat').textContent= volat + (volat !== '--' ? '%' : '');
 
       // Doji & MTM 信号
-      const doji = last.doji ? '十字星' : '无';
-      const mtm  = priceArr[priceArr.length-1] - priceArr[priceArr.length-11];
+      const doji = last.doji ? '✅ 十字星' : '無';
+      const mtm  = priceArr.length > 10 ? (priceArr[priceArr.length-1] - priceArr[priceArr.length-11]) : 0;
       document.getElementById('doji').textContent = doji;
       document.getElementById('mtm').textContent  = mtm.toFixed(2);
     }
 
-    /* --------- ECharts 画图 --------- */
+    /* --------- ECharts 畫圖 --------- */
     function drawCharts(ohlcv){
       const dates = ohlcv.map(d=>d.t);
+      // Echarts K線數據格式: [open, close, lowest, highest]
       const ohlc    = ohlcv.map(d=>[d.o,d.c,d.l,d.h]);
       const vols    = ohlcv.map(d=>d.v);
       const indSel  = Array.from(document.getElementById('ind').selectedOptions).map(o=>o.value);
-
-      // 1. 主图：K线 + MA + 布林 + RSI + MACD + Doji散射
-      const mainOption = {
-        animation: false,
-        legend: {data:['K线','MA5','MA10','MA20','RSI','MACD','Doji','UB','LB'],inactiveColor:'#777',textStyle:{color:'#333'}},
-        tooltip: {trigger: 'axis',axisPointer: {type: 'cross'},borderWidth:1,borderColor:'#ccc',padding:10,textStyle:{color:'#333'}},
-        axisPointer: {link:[{xAxisIndex:'all'}],label:{backgroundColor:'#777'}},
-        grid: [{left:'10%',right:'8%',top:'10%',height:'60%'}],
-        xAxis: [{type:'category',data:dates,scale:true,boundaryGap:false,axisLine:{onZero:false},splitLine:{show:false},min:'dataMin',max:'dataMax'}],
-        yAxis: [{scale:true,splitArea:{show:true}}],
-        dataZoom: [{type:'inside',xAxisIndex:[0],start:50,end:100}],
-        series: [
-          {name:'K线',type:'candlestick',data:ohlc,itemStyle:{color:'#ef232a',color0:'#14b143',borderColor:'#ef232a',borderColor0:'#14b143'}},
-          {name:'RSI',type:'line',data:ohlcv.map(d=>d.rsi??null),lineStyle:{width:1.5,color:'#ff9800'},symbol:'none',yAxisIndex:0},
-          {name:'MACD',type:'line',data:ohlcv.map(d=>d.macd??null),lineStyle:{width:1.5,color:'#9c27b0'},symbol:'none',yAxisIndex:0}
-        ]
-      };
+      
+      // 1. 主圖：K線 + MA + 布林
+      const mainSeries = [
+        {name:'K線',type:'candlestick',data:ohlc,itemStyle:{color:'#ef232a',color0:'#14b143',borderColor:'#ef232a',borderColor0:'#14b143'}}
+      ];
+      
       if(indSel.includes('MA')){
-        mainOption.series.push(
+        mainSeries.push(
           {name:'MA5',type:'line',data:ohlcv.map(d=>d.ma5??null),lineStyle:{width:1.5,color:'#f59331'},symbol:'none'},
           {name:'MA10',type:'line',data:ohlcv.map(d=>d.ma10??null),lineStyle:{width:1.5,color:'#4ecdc4'},symbol:'none'},
           {name:'MA20',type:'line',data:ohlcv.map(d=>d.ma20??null),lineStyle:{width:1.5,color:'#45b7d1'},symbol:'none'}
         );
       }
       if(indSel.includes('BB')){
-        mainOption.series.push(
+        mainSeries.push(
           {name:'UB',type:'line',data:ohlcv.map(d=>d.ub??null),lineStyle:{width:1,color:'#ffa726',type:'dashed'},symbol:'none'},
           {name:'LB',type:'line',data:ohlcv.map(d=>d.lb??null),lineStyle:{width:1,color:'#ffa726',type:'dashed'},symbol:'none'}
         );
       }
+      if(indSel.includes('RSI')){
+        mainSeries.push(
+          {name:'RSI',type:'line',data:ohlcv.map(d=>d.rsi??null),lineStyle:{width:1.5,color:'#ff00ff'},symbol:'none'}
+        );
+      }
+      if(indSel.includes('MACD')){
+        mainSeries.push(
+          {name:'MACD',type:'line',data:ohlcv.map(d=>d.macd??null),lineStyle:{width:1.5,color:'#9c27b0'},symbol:'none'},
+          {name:'Signal',type:'line',data:ohlcv.map(d=>d.signal??null),lineStyle:{width:1.5,color:'#00ffff'},symbol:'none'}
+        );
+      }
+      
       // Doji 散射
       const dojiData = ohlcv.map((d,i)=>(d.doji?[i,d.h]:null)).filter(v=>v);
-      if(dojiData.length) mainOption.series.push({name:'Doji',type:'scatter',symbol:'diamond',symbolSize:8,itemStyle:{color:'#ff9800'},data:dojiData});
+      if(dojiData.length) mainSeries.push({name:'Doji',type:'scatter',symbol:'diamond',symbolSize:8,itemStyle:{color:'#ff9800'},data:dojiData});
+
+
+      const mainOption = {
+        animation: false,
+        legend: {data:mainSeries.map(s=>s.name),inactiveColor:'#777',textStyle:{color:'#333'}},
+        tooltip: {trigger: 'axis',axisPointer: {type: 'cross'},borderWidth:1,borderColor:'#ccc',padding:10,textStyle:{color:'#333'}},
+        axisPointer: {link:[{xAxisIndex:'all'}],label:{backgroundColor:'#777'}},
+        grid: [{left:'10%',right:'8%',top:'10%',height:'60%'}],
+        xAxis: [{type:'category',data:dates,scale:true,boundaryGap:false,axisLine:{onZero:false},splitLine:{show:false},min:'dataMin',max:'dataMax'}],
+        yAxis: [{scale:true,splitArea:{show:true},position: 'right'}],
+        dataZoom: [{type:'inside',xAxisIndex:[0],start:70,end:100}],
+        series: mainSeries
+      };
 
       if(!mainChart) mainChart = echarts.init(document.getElementById('mainChart'));
       mainChart.setOption(mainOption);
 
-      // 2. 副图：独立成交量（颜色随涨跌）
+      // 2. 副圖：獨立成交量（顏色隨漲跌）
       const volOption = {
         animation: false,
         grid: [{left:'10%',right:'8%',top:'10%',height:'70%'}],
         xAxis: [{type:'category',data:dates,scale:true,boundaryGap:false,axisLine:{onZero:false},splitLine:{show:false},axisLabel:{show:false}}],
-        yAxis: [{type:'value',splitNumber:2,axisLabel:{show:true,formatter:v=>(v/1e6)+'M'},axisLine:{show:false},axisTick:{show:false},splitLine:{show:false}}],
+        yAxis: [{type:'value',splitNumber:2,axisLabel:{show:true,formatter:v=>(v/1e6)+'M'},axisLine:{show:false},axisTick:{show:false},splitLine:{show:false},position: 'right'}],
         series: [{
           name:'Volume',type:'bar',data:vols.map((v,i)=>({value:v,itemStyle:{color:ohlcv[i].c>ohlcv[i].o?'#ef232a':'#14b143'}})),
           barWidth:'60%'
@@ -206,7 +305,13 @@
       if(!volChart) volChart = echarts.init(document.getElementById('volChart'));
       volChart.setOption(volOption);
 
-      // 联动缩放
+      // 響應式：監聽窗口大小變化
+      window.onresize = function() {
+          mainChart.resize();
+          volChart.resize();
+      };
+
+      // 聯動縮放
       mainChart.on('dataZoom', function (params) {
         volChart.dispatchAction({type: 'dataZoom',start: params.start,end: params.end});
       });
@@ -215,51 +320,197 @@
       });
     }
 
-    /* --------- 技术指标 --------- */
+    /* ---------------------------------------------------- */
+    /* --------- 技術指標計算函數 (保留原邏輯) --------- */
+    /* ---------------------------------------------------- */
+    // Simple Moving Average (SMA)
     function SMA(arr, n){
       const out = []; let sum = 0;
-      for(let i = 0; i < arr.length; i++){ sum += arr[i]; if(i >= n) sum -= arr[i - n]; out[i] = i >= n - 1 ? sum / n : null; }
-      return out;
-    }
-    function BB(arr, n){
-      const ma = SMA(arr, n), out = {ub: [], lb: []};
-      for(let i = n - 1; i < arr.length; i++){
-        const std = Math.sqrt(arr.slice(i - n + 1, i + 1).reduce((s, v) => s + (v - ma[i]) ** 2, 0) / n);
-        out.ub[i] = ma[i] + 2 * std; out.lb[i] = ma[i] - 2 * std;
+      for(let i = 0; i < arr.length; i++){ 
+        sum += arr[i]; 
+        if(i >= n) sum -= arr[i - n]; 
+        out[i] = i >= n - 1 ? sum / n : null; 
       }
       return out;
     }
+    
+    // Bollinger Bands (BB)
+    function BB(arr, n){
+      const ma = SMA(arr, n), out = {ub: [], lb: []};
+      for(let i = n - 1; i < arr.length; i++){
+        const slice = arr.slice(i - n + 1, i + 1);
+        const mean = ma[i];
+        const std = Math.sqrt(slice.reduce((s, v) => s + (v - mean) ** 2, 0) / n);
+        out.ub[i] = mean + 2 * std; 
+        out.lb[i] = mean - 2 * std;
+      }
+      return out;
+    }
+    
+    // Relative Strength Index (RSI) - Wilder Smoothing
     function RSI(arr, n = 14){
-      const rsi = []; let up = 0, down = 0;
-      for(let i = 1; i <= n; i++){ const d = arr[i] - arr[i - 1]; up += Math.max(d, 0); down += Math.max(-d, 0); }
-      let avgUp = up / n, avgDown = down / n;
-      for(let i = n; i < arr.length; i++){
+      const rsi = []; let avgUp = 0, avgDown = 0;
+      if (arr.length < n + 1) return [];
+
+      // 計算初始 RS
+      let up = 0, down = 0;
+      for(let i = 1; i <= n; i++){ 
+        const d = arr[i] - arr[i - 1]; 
+        up += Math.max(d, 0); 
+        down += Math.max(-d, 0); 
+      }
+      avgUp = up / n; 
+      avgDown = down / n;
+      rsi[n] = 100 - 100 / (1 + avgUp / (avgDown || 1e-10)); // 避免除以零
+
+      // 後續計算
+      for(let i = n + 1; i < arr.length; i++){
         const d = arr[i] - arr[i - 1];
-        avgUp = (avgUp * (n - 1) + Math.max(d, 0)) / n;
-        avgDown = (avgDown * (n - 1) + Math.max(-d, 0)) / n;
-        const rs = avgUp / (avgDown || 1);
+        const currentUp = Math.max(d, 0);
+        const currentDown = Math.max(-d, 0);
+
+        avgUp = (avgUp * (n - 1) + currentUp) / n;
+        avgDown = (avgDown * (n - 1) + currentDown) / n;
+        
+        const rs = avgUp / (avgDown || 1e-10);
         rsi[i] = 100 - 100 / (1 + rs);
       }
       return rsi;
     }
+    
+    // Exponential Moving Average (EMA)
+    function EMA(arr, n){
+      const k = 2 / (n + 1), out = []; 
+      if (!arr.length) return out;
+      
+      // 使用 SMA 作為初始值
+      let ema = SMA(arr.slice(0, n), n)[n - 1];
+      if (ema === null) ema = arr[0]; // 如果數據不足 n 個，使用第一個值
+      out[n - 1] = ema;
+
+      for(let i = 0; i < arr.length; i++){ 
+          if (i < n) {
+              out[i] = null;
+          } else {
+              // k * Current_Close + (1 - k) * Previous_EMA
+              ema = arr[i] * k + ema * (1 - k); 
+              out[i] = ema; 
+          }
+      }
+      return out;
+    }
+    
+    // Moving Average Convergence Divergence (MACD)
     function MACD(arr, fast = 12, slow = 26, signal = 9){
-      const ema12 = EMA(arr, fast), ema26 = EMA(arr, slow);
+      const ema12 = EMA(arr, fast);
+      const ema26 = EMA(arr, slow);
       const macd = [];
-      for(let i = slow - 1; i < arr.length; i++) macd[i] = (ema12[i] || 0) - (ema26[i] || 0);
-      const sig = EMA(macd.filter(v => v != null), signal);
-      const signalLine = [];
-      for(let i = slow + signal - 2; i < arr.length; i++) signalLine[i] = sig[i - slow - signal + 2 + signal - 1] || 0;
+      
+      for(let i = 0; i < arr.length; i++) {
+          if (ema12[i] !== null && ema26[i] !== null) {
+              macd[i] = ema12[i] - ema26[i];
+          } else {
+              macd[i] = null;
+          }
+      }
+      
+      // 計算信號線 (Signal Line)
+      // 過濾掉 MACD 中的 null 值
+      const filteredMacd = macd.filter(v => v !== null);
+      const sig = EMA(filteredMacd, signal);
+      
+      // 將信號線對齊回原始 MACD 陣列
+      const signalLine = new Array(arr.length).fill(null);
+      const offset = macd.findIndex(v => v !== null); // 找到 MACD 開始有值的索引
+      
+      for(let i = 0; i < sig.length; i++) {
+          // 信號線從 MACD 陣列有值的第 signal 個點開始有值
+          if (sig[i] !== null) {
+            signalLine[offset + i] = sig[i];
+          }
+      }
+      
       return {macd, signal: signalLine};
     }
-    function EMA(arr, n){
-      const k = 2 / (n + 1), out = []; let ema = arr[0];
-      for(let i = 0; i < arr.length; i++){ ema = arr[i] * k + ema * (1 - k); out[i] = ema; }
-      return out;
+    
+    // Average True Range (ATR)
+    function ATR(ohlcv, n = 14){
+        const trs = [];
+        const atr = [];
+        
+        for (let i = 0; i < ohlcv.length; i++) {
+            const h = ohlcv[i].h;
+            const l = ohlcv[i].l;
+            const cPrev = i > 0 ? ohlcv[i-1].c : ohlcv[0].c;
+
+            // True Range = Max(|High - Low|, |High - PrevClose|, |Low - PrevClose|)
+            const tr = Math.max(h - l, Math.abs(h - cPrev), Math.abs(l - cPrev));
+            trs.push(tr);
+        }
+
+        // 使用 Wilder's Smoothing for ATR (與 RSI 相同)
+        let sumTR = 0;
+        for (let i = 0; i < n; i++) {
+            sumTR += trs[i];
+        }
+        let avgTR = sumTR / n;
+        
+        for(let i = 0; i < ohlcv.length; i++){
+            if (i < n) {
+                atr[i] = null;
+            } else if (i === n) {
+                atr[i] = avgTR;
+            } else {
+                // ATR = ((Prev ATR * (n-1)) + Current TR) / n
+                avgTR = (avgTR * (n - 1) + trs[i]) / n;
+                atr[i] = avgTR;
+            }
+        }
+        return atr;
+    }
+
+
+    /* --------- 假資料生成 (用於後端不可用時的演示) --------- */
+    function genMockOHLCV(count) {
+        const mockData = [];
+        let lastClose = 100.0;
+        let baseVol = 5000000;
+        const today = new Date();
+
+        for (let i = 0; i < count; i++) {
+            const date = new Date(today);
+            date.setDate(today.getDate() - (count - 1 - i));
+            const dateStr = date.toISOString().split('T')[0];
+
+            const change = (Math.random() - 0.5) * 2; // -1 to 1
+            const open = lastClose * (1 + change * 0.005);
+            const close = open * (1 + change * 0.008);
+            
+            const high = Math.max(open, close) * (1 + Math.random() * 0.005);
+            const low = Math.min(open, close) * (1 - Math.random() * 0.005);
+            
+            const volume = Math.floor(baseVol * (0.8 + Math.random() * 0.4)); // 80% to 120%
+            
+            // 簡化 Doji 判斷：Open ≈ Close (價差小於 0.1% 的振幅)
+            const doji = Math.abs(open - close) < (high - low) * 0.1;
+
+            mockData.push({
+                t: dateStr,
+                o: parseFloat(open.toFixed(2)),
+                h: parseFloat(high.toFixed(2)),
+                l: parseFloat(low.toFixed(2)),
+                c: parseFloat(close.toFixed(2)),
+                v: volume,
+                doji: doji,
+            });
+            lastClose = parseFloat(close.toFixed(2));
+        }
+        return mockData;
     }
 
     /* --------- 功能 --------- */
     function backtest(){
-      if(!priceArr.length){ print('❌ 请先查询数据'); return; }
+      if(!priceArr.length){ print('❌ 請先查詢數據'); return; }
       const ma5 = SMA(priceArr,5), ma20 = SMA(priceArr,20);
       let pos = 0, cash = 10000, hold = 0, trades = 0;
       for(let i = 20; i < priceArr.length; i++){
@@ -267,23 +518,29 @@
         if(ma5[i] > ma20[i] && pos <= 0){
           hold = Math.floor(cash / price);
           cash -= hold * price; pos = 1; trades++;
-          print(`📈 金叉买入 @ ${price.toFixed(2)} 股数 ${hold}`);
+          print(`📈 金叉買入 @ ${price.toFixed(2)} 股數 ${hold}`);
         }else if(ma5[i] < ma20[i] && pos > 0){
           cash += hold * price;
-          print(`📉 死叉卖出 @ ${price.toFixed(2)} 股数 ${hold}`);
+          print(`📉 死叉賣出 @ ${price.toFixed(2)} 股數 ${hold}`);
           pos = 0; hold = 0;
         }
       }
       const final = cash + (hold * priceArr[priceArr.length - 1]);
-      print(`\n🧾 交易 ${trades} 次，最终净值 ${final.toFixed(2)}，收益率 ${((final/10000-1)*100).toFixed(2)}%`);
+      print(`\n================================`);
+      print(`🧾 交易 ${trades} 次，初始淨值 10000.00`);
+      print(`最終淨值 ${final.toFixed(2)}，收益率 ${((final/10000-1)*100).toFixed(2)}%`);
+      print(`================================`);
     }
 
     function aiAnalysis(){
-      print('🤖 当前策略为 MA 金叉死叉，建议在震荡市加入 RSI 过滤，减少假信号。');
+      print('🤖 分析：當前策略為 MA 金叉死叉。');
+      print('建議：在震盪市場中，應加入 RSI 或 ADX 指標進行過濾，以減少假信號。');
     }
 
-    /* --------- 初始加载 --------- */
-    fetchData();
+    /* --------- 初始加載 --------- */
+    document.addEventListener('DOMContentLoaded', () => {
+        fetchData();
+    });
   </script>
 </body>
 </html>
