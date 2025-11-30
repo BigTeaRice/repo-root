@@ -2,10 +2,11 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>股票分析工具 </title>
+  <title>股票分析工具 - 前后端</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
   <style>
+    /* 同前一份完整样式 */
     :root{--primary:#111;--accent:#f59331;--bg:#f7f7f7;--card:#fff;}
     *{box-sizing:border-box;}
     body{margin:0;padding:0 0 60px;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;}
@@ -28,7 +29,7 @@
   </style>
 </head>
 <body>
-  <header>股票分析工具</header>
+  <header>股票分析工具 - 前后端</header>
 
   <div class="top-bar">
     <input id="symbol" type="text" placeholder="AAPL / 0700.HK" value="AAPL">
@@ -97,17 +98,19 @@
       const range = document.getElementById('range').value;
       print(`拉取 ${sym} ${range} 行情...`);
       try{
-        const file = sym.toLowerCase().replace('.','') + `_${range}.json`;
-        const res = await fetch(`./data/${file}?t=${Date.now()}`);
-        if(!res.ok) throw new Error('静态文件不存在');
+        // ① 先尝试后端 API（本地 5000 或 GitHub Codespaces 端口）
+        const apiUrl = `${location.protocol}//${location.hostname}:5000/api/kline?sym=${sym}&range=${range}`;
+        const res = await fetch(apiUrl);
+        if(!res.ok) throw new Error('后端未启动');
         const raw = await res.json();
-        priceArr = raw.map(o=>o.c);
-        volArr   = raw.map(o=>o.v);
+        priceArr = raw.map(d=>d.c);
+        volArr   = raw.map(d=>d.v);
         updateCard(raw[raw.length-1]);
         drawCharts(raw);
-        print(`✅ 拿到 ${raw.length} 条记录`);
+        print(`✅ 后端返回 ${raw.length} 条记录`);
       }catch(e){
-        print('⚠️ 静态数据失败，用假数据演示');
+        // ② 后端不可用 → 立即用随机数据生成完整图表
+        print('⚠️ 后端不可用，用随机数据演示');
         const mock = genMockOHLCV(200);
         priceArr = mock.map(o=>o.c);
         volArr   = mock.map(o=>o.v);
@@ -125,22 +128,24 @@
       document.getElementById('change').textContent = `${chg>0?'+':''}${chg.toFixed(2)} (${chgP}%)`;
       document.getElementById('change').style.color = chg>0?'#e53e3e':'#4caf50';
 
-      const ma5 = SMA(priceArr,5), ma10 = SMA(priceArr,10), ma20 = SMA(priceArr,20);
-      const rsi = RSI(priceArr,14);
-      const atr = ATR(priceArr,14);
-      const vol = volArr.slice(-1)[0];
-      const volat = (ATR(priceArr,14)/last.c*100).toFixed(2);
+      const ma5 = last.ma5 ?? '--';
+      const ma10 = last.ma10 ?? '--';
+      const ma20 = last.ma20 ?? '--';
+      const rsi  = last.rsi ?? '--';
+      const atr  = last.atr ?? '--';
+      const vol  = last.v;
+      const volat = (atr !== '--' ? (atr / last.c * 100).toFixed(2) : '--');
 
-      document.getElementById('ma5').textContent  = ma5[ma5.length-1]?.toFixed(2) ?? '--';
-      document.getElementById('ma10').textContent = ma10[ma10.length-1]?.toFixed(2) ?? '--';
-      document.getElementById('ma20').textContent = ma20[ma20.length-1]?.toFixed(2) ?? '--';
-      document.getElementById('rsi').textContent  = rsi[rsi.length-1]?.toFixed(2) ?? '--';
-      document.getElementById('atr').textContent  = atr[atr.length-1]?.toFixed(2) ?? '--';
+      document.getElementById('ma5').textContent  = ma5;
+      document.getElementById('ma10').textContent = ma10;
+      document.getElementById('ma20').textContent = ma20;
+      document.getElementById('rsi').textContent  = rsi;
+      document.getElementById('atr').textContent  = atr;
       document.getElementById('vol').textContent  = (vol/1e6).toFixed(1)+'M';
       document.getElementById('volat').textContent= volat+'%';
 
       // Doji & MTM 信号
-      const doji = Math.abs(last.o - last.c) / (last.h - last.l) < 0.1 ? '十字星' : '无';
+      const doji = last.doji ? '十字星' : '无';
       const mtm  = priceArr[priceArr.length-1] - priceArr[priceArr.length-11];
       document.getElementById('doji').textContent = doji;
       document.getElementById('mtm').textContent  = mtm.toFixed(2);
@@ -165,27 +170,25 @@
         dataZoom: [{type:'inside',xAxisIndex:[0],start:50,end:100}],
         series: [
           {name:'K线',type:'candlestick',data:ohlc,itemStyle:{color:'#ef232a',color0:'#14b143',borderColor:'#ef232a',borderColor0:'#14b143'}},
-          {name:'RSI',type:'line',data:RSI(priceArr,14),lineStyle:{width:1.5,color:'#ff9800'},symbol:'none',yAxisIndex:0},
-          {name:'MACD',type:'line',data:MACD(priceArr).macd,lineStyle:{width:1.5,color:'#9c27b0'},symbol:'none',yAxisIndex:0}
+          {name:'RSI',type:'line',data:ohlcv.map(d=>d.rsi??null),lineStyle:{width:1.5,color:'#ff9800'},symbol:'none'},
+          {name:'MACD',type:'line',data:ohlcv.map(d=>d.macd??null),lineStyle:{width:1.5,color:'#9c27b0'},symbol:'none'}
         ]
       };
       if(indSel.includes('MA')){
-        const ma5 = SMA(priceArr,5), ma10 = SMA(priceArr,10), ma20 = SMA(priceArr,20);
         mainOption.series.push(
-          {name:'MA5',type:'line',data:ma5,lineStyle:{width:1.5,color:'#f59331'},symbol:'none'},
-          {name:'MA10',type:'line',data:ma10,lineStyle:{width:1.5,color:'#4ecdc4'},symbol:'none'},
-          {name:'MA20',type:'line',data:ma20,lineStyle:{width:1.5,color:'#45b7d1'},symbol:'none'}
+          {name:'MA5',type:'line',data:ohlcv.map(d=>d.ma5??null),lineStyle:{width:1.5,color:'#f59331'},symbol:'none'},
+          {name:'MA10',type:'line',data:ohlcv.map(d=>d.ma10??null),lineStyle:{width:1.5,color:'#4ecdc4'},symbol:'none'},
+          {name:'MA20',type:'line',data:ohlcv.map(d=>d.ma20??null),lineStyle:{width:1.5,color:'#45b7d1'},symbol:'none'}
         );
       }
       if(indSel.includes('BB')){
-        const bb = BB(priceArr,20);
         mainOption.series.push(
-          {name:'UB',type:'line',data:bb.ub,lineStyle:{width:1,color:'#ffa726',type:'dashed'},symbol:'none'},
-          {name:'LB',type:'line',data:bb.lb,lineStyle:{width:1,color:'#ffa726',type:'dashed'},symbol:'none'}
+          {name:'UB',type:'line',data:ohlcv.map(d=>d.ub??null),lineStyle:{width:1,color:'#ffa726',type:'dashed'},symbol:'none'},
+          {name:'LB',type:'line',data:ohlcv.map(d=>d.lb??null),lineStyle:{width:1,color:'#ffa726',type:'dashed'},symbol:'none'}
         );
       }
       // Doji 散射
-      const dojiData = ohlcv.map((d,i)=>(Math.abs(d.o-d.c)/(d.h-d.l)<0.1?[i,d.h]:null)).filter(v=>v);
+      const dojiData = ohlcv.map((d,i)=>(d.doji?[i,d.h]:null)).filter(v=>v);
       if(dojiData.length) mainOption.series.push({name:'Doji',type:'scatter',symbol:'diamond',symbolSize:8,itemStyle:{color:'#ff9800'},data:dojiData});
 
       if(!mainChart) mainChart = echarts.init(document.getElementById('mainChart'));
@@ -279,21 +282,6 @@
 
     function aiAnalysis(){
       print('🤖 当前策略为 MA 金叉死叉，建议在震荡市加入 RSI 过滤，减少假信号。');
-    }
-
-    /* --------- 假数据 fallback --------- */
-    function genMockOHLCV(len){
-      const out = []; let base = 150;
-      for(let i = 0; i < len; i++){
-        base += (Math.random() - 0.49) * 2;
-        const c = Number(base.toFixed(2));
-        const o = c + (Math.random() - 0.5) * 1;
-        const h = c + Math.random() * 1;
-        const l = c - Math.random() * 1;
-        const v = Math.floor(Math.random() * 1e7);
-        out.push({o, h, l, c, v, t: i});
-      }
-      return out;
     }
 
     /* --------- 初始加载 --------- */
