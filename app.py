@@ -1,12 +1,10 @@
-# app.py
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import yfinance as yf
-import pandas as pd
 import ta
 
 app = Flask(__name__)
-CORS(app)  # 允许前端跨域
+CORS(app)
 
 @app.route('/api/kline', methods=['GET'])
 def kline():
@@ -34,3 +32,6 @@ def kline():
 
     out = df[['o','h','l','c','v','t','ma5','ma10','ma20','rsi','atr','macd','macdSignal','doji']].dropna()
     return jsonify(out.to_dict(orient='records'))
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
