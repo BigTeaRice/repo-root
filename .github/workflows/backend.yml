@@ -1,0 +1,36 @@
+name: Deploy Backend + Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: |
+          nohup python app.py > backend.log 2>&1 &
+          sleep 3
+      - name: Expose port 5000
+        uses: jakejarvis/wait-for-it@v1.1.0
+        with:
+          host: 127.0.0.1
+          port: 5000
+          timeout: 30
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
