@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>股票分析工具 - 纯静态版</title>
+  <title>股票分析工具 </title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
@@ -18,7 +18,7 @@
   </style>
 </head>
 <body class="bg-gray-100 font-sans m-0 pb-16">
-<header class="bg-gray-800 text-white p-4 font-bold sticky top-0 z-10">股票分析工具 - 纯静态版</header>
+<header class="bg-gray-800 text-white p-4 font-bold sticky top-0 z-10">股票分析工具</header>
 
 <div class="flex flex-wrap gap-2 p-4 bg-white border-b items-center">
   <input id="symbol" type="text" placeholder="AAPL / 0700.HK" value="AAPL" class="p-2 border rounded text-sm flex-grow min-w-[100px]">
@@ -72,7 +72,12 @@ async function fetchData(){
   const sym=document.getElementById('symbol').value.trim().toUpperCase();
   print(`拉取 ${sym} 数据...`);
   try{
-    const res=await fetch(`./data/${sym}.json`);
+    // ***** 關鍵修正開始 *****
+    // 移除 '.' 以匹配 crawl_any.py 生成的 0700HK.json 檔案
+    const fileName = sym.replace('.', '');
+    const res=await fetch(`./data/${fileName}.json`);
+    // ***** 關鍵修正結束 *****
+    
     if(!res.ok) throw new Error('无此股票数据');
     const raw=await res.json();
     if(!raw.length) throw new Error('空数据');
