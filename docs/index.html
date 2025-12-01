@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>股票分析工具 </title>
+  <title>股票分析工具 - 纯静态版</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
@@ -18,7 +18,7 @@
   </style>
 </head>
 <body class="bg-gray-100 font-sans m-0 pb-16">
-<header class="bg-gray-800 text-white p-4 font-bold sticky top-0 z-10">股票分析工具</header>
+<header class="bg-gray-800 text-white p-4 font-bold sticky top-0 z-10">股票分析工具 - 纯静态版</header>
 
 <div class="flex flex-wrap gap-2 p-4 bg-white border-b items-center">
   <input id="symbol" type="text" placeholder="AAPL / 0700.HK" value="AAPL" class="p-2 border rounded text-sm flex-grow min-w-[100px]">
@@ -57,7 +57,7 @@
 
 <footer class="fixed bottom-0 left-0 right-0 bg-gray-800 flex justify-center gap-4 p-3 shadow z-10">
   <a href="./" class="text-white text-sm bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">主页</a>
-  <a href="#" onclick="backtest();return false;" class="text-white text-sm bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">回测</a>
+  <a href="https://bigtearice.github.io/my-backtest-repo/" class="text-white text-sm bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">回测</a>
   <a href="#" onclick="aiAnalysis();return false;" class="text-white text-sm bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">AI 分析</a>
 </footer>
 
@@ -72,11 +72,9 @@ async function fetchData(){
   const sym=document.getElementById('symbol').value.trim().toUpperCase();
   print(`拉取 ${sym} 数据...`);
   try{
-    // ***** 關鍵修正開始 *****
-    // 移除 '.' 以匹配 crawl_any.py 生成的 0700HK.json 檔案
+    // 關鍵修正：移除 '.' 以匹配 crawl_any.py 生成的 0700HK.json 檔案
     const fileName = sym.replace('.', '');
-    const res=await fetch(`./data/${fileName}.json`);
-    // ***** 關鍵修正結束 *****
+    const res=await fetch(`./data/${fileName}.json`); 
     
     if(!res.ok) throw new Error('无此股票数据');
     const raw=await res.json();
@@ -142,7 +140,7 @@ function drawCharts(data){
   volChart.on('dataZoom',params=>mainChart.dispatchAction({type:'dataZoom',start:params.start,end:params.end}));
 }
 
-/* --------- 回测 --------- */
+/* --------- 回测 (此函数已不再通过链接调用，但保留在代码中) --------- */
 function backtest(){
   if(!ohlcvData.length){print('❌ 请先查询数据');return;}
   const c=ohlcvData.map(d=>d.c);
