@@ -1,18 +1,20 @@
-name: 更新任意股票日线（手动输入）
+name: 自動/手動更新股票日线
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 保留手動輸入
     inputs:
       symbols:
         description: "股票代码（美股/港股），多个用英文逗号分隔，如 AAPL,0700.HK,TSLA"
-        required: true
-        default: "AAPL,0700.HK"
+        required: false # 設為可選，允許手動運行但不輸入代碼
+        default: "" # 預設為空
       period:
         description: "周期"
         required: true
         default: "30d"
         type: choice
         options: ["1d","5d","30d","90d","180d","1y"]
+  schedule: # 增加每日排程
+    - cron: '0 0 * * *' 
 
 jobs:
   crawl:
@@ -27,28 +29,29 @@ jobs:
           python-version: '3.11'
 
       - name: Install deps
-        # 修正：安裝 requirements.txt 中的所有依賴 (yfinance, ta, flask 等)
+        # 修正：安裝 requirements.txt 中的所有依賴
         run: pip install -r requirements.txt 
 
       - name: 爬取并生成 JSON
-        # 執行 crawl_any.py 腳本，將結果寫入 docs/data/
+        # 檢查是否為手動輸入，若否或輸入為空，則不傳參數，使用 DEFAULT_SYMBOLS
         run: |
-          python $GITHUB_WORKSPACE/scripts/crawl_any.py \
-            "${{ github.event.inputs.symbols }}" \
-            "${{ github.event.inputs.period }}"
+          SYMBOL_INPUT="${{ github.event.inputs.symbols }}"
+          PERIOD_INPUT="${{ github.event.inputs.period }}"
+
+          if [ -z "$SYMBOL_INPUT" ]; then
+            echo "未收到股票代碼，運行預設清單爬取"
+            python $GITHUB_WORKSPACE/scripts/crawl_any.py
+          else
+            echo "接收到手動代碼：$SYMBOL_INPUT，運行手動爬取"
+            python $GITHUB_WORKSPACE/scripts/crawl_any.py "$SYMBOL_INPUT" "$PERIOD_INPUT"
+          fi
 
       - name: Commit & Push
-        # 配置 Git
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          
-          # 將 docs/data 資料夾下的所有變更加入追蹤
           git add docs/data
-          
-          # 檢查是否有實際更新，若無則輸出 "无更新"
           git diff --cached --quiet && echo "无更新" || (
-            # 若有更新，則提交並推送到 GitHub
-            git commit -m "chore: 更新 ${{ github.event.inputs.symbols }} ${{ github.event.inputs.period }} 数据"
+            git commit -m "chore: 更新股票数据 (自动/手动)"
             git push
           )
