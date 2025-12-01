@@ -1,0 +1,46 @@
+name: 更新任意股票日线（手动输入）
+
+on:
+  workflow_dispatch:
+    inputs:
+      symbols:
+        description: "股票代码（美股/港股），多个用英文逗号分隔，如 AAPL,0700.HK,TSLA"
+        required: true
+        default: "AAPL,0700.HK"
+      period:
+        description: "周期"
+        required: true
+        default: "30d"
+        type: choice
+        options: ["1d","5d","30d","90d","180d","1y"]
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - run: pip install -U yfinance
+      - run: |
+          python - <<'PY'
+          import yfinance as yf,json,os
+          raw="${{ github.event.inputs.symbols }}".split(",")
+          prd="${{ github.event.inputs.period }}"
+          os.makedirs('docs/data',exist_ok=True)
+          for s in raw:
+              s=s.strip().upper()
+              yh=s.replace("00","0",1)if s.endswith(".HK")and s.startswith("00")else s
+              df=yf.Ticker(yh).history(period=prd,interval='1d',prepost=False)
+              if df.empty:print(f'❌{s}无数据');continue
+              out=[{"t":t.strftime('%Y-%m-%d'),"o":round(float(row.Open),2),"h":round(float(row.High),2),"l":round(float(row.Low),2),"c":round(float(row.Close),2),"v":int(row.Volume)} for t,row in df.iterrows()]
+              fn=s.replace(".","")+".json"
+              with open(f'docs/data/{fn}','w')as f:json.dump(out,f,separators=(',',':'))
+              print(f'✅{s}→{fn}共{len(out)}条')
+          PY
+      - run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add docs/data
+          git diff --cached --quiet || (git commit -m "chore: 更新 ${{ github.event.inputs.symbols }} ${{ github.event.inputs.period }} 数据" && git push)
