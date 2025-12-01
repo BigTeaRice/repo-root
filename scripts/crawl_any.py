@@ -28,6 +28,7 @@ def crawl(symbols: list[str], period: str):
         s = s.strip().upper()
         yh = fix_symbol(s)
         try:
+            # period 參數支持 1d, 5d, 30d, 90d, 180d, 1y 等
             df = yf.Ticker(yh).history(period=period, interval="1d", prepost=False)
             if df.empty:
                 print(f"❌ {s} 无数据"); continue
@@ -44,8 +45,10 @@ def crawl(symbols: list[str], period: str):
                 for t, row in df.iterrows()
             ]
 
-            file_name = s.replace(".", "") + ".json"  # 0700.HK → 0700HK.json
+            # 修正：直接使用完整的股票代碼作為文件名的一部分，例如：0700.HK.json
+            file_name = s + ".json"
             with open(f"docs/data/{file_name}", "w") as f:
+                # 使用 separators=(",", ":") 減少 JSON 文件大小
                 json.dump(out, f, separators=(",", ":"))
             print(f"✅ {s} → {file_name} 共 {len(out)} 条")
         except Exception as e:
@@ -58,5 +61,6 @@ if __name__ == "__main__":
         sys.exit(1)
 
     raw_symbols = sys.argv[1].split(",")
-    period = sys.argv[2] if len(sys.argv) > 2 else "30d"
+    # 週期默認為 30 天
+    period = sys.argv[2] if len(sys.argv) > 2 else "30d" 
     crawl(raw_symbols, period)
