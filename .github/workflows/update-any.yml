@@ -1,23 +1,18 @@
-name: 爬取任意股票日线（1d~1y）
+name: 更新任意股票日线（手动输入）
 
 on:
   workflow_dispatch:
     inputs:
       symbols:
-        description: "股票代码（美股/港股），多个用英文逗号分隔，如 AAPL,0700.HK,MSFT"
+        description: "股票代码（美股/港股），多个用英文逗号分隔，如 AAPL,0700.HK,TSLA"
         required: true
+        default: "AAPL,0700.HK"
       period:
         description: "周期"
         required: true
         default: "30d"
         type: choice
-        options:
-          - "1d"
-          - "5d"
-          - "30d"
-          - "90d"
-          - "180d"
-          - "1y"
+        options: ["1d","5d","30d","90d","180d","1y"]
 
 jobs:
   crawl:
@@ -32,26 +27,25 @@ jobs:
           python-version: '3.11'
 
       - name: Install deps
-        run: pip install yfinance
+        run: pip install -U yfinance
 
       - name: 爬取并生成 JSON
         run: |
-          python - <<PY
-          import yfinance as yf, json, os, sys
+          python - <<'PY'
+          import yfinance as yf, json, os
 
           raw_symbols = "${{ github.event.inputs.symbols }}".split(",")
           period      = "${{ github.event.inputs.period }}"
-          os.makedirs("docs/data", exist_ok=True)
+          os.makedirs('docs/data', exist_ok=True)
 
           for s in raw_symbols:
               s = s.strip().upper()
               # 港股 00700.HK → 0700.HK
-              yahoo_sym = s.replace("00", "0", 1) if s.endswith(".HK") and s.startswith("00") else s
+              yahoo_sym = s.replace("00","0",1) if s.endswith(".HK") and s.startswith("00") else s
               try:
-                  tk = yf.Ticker(yahoo_sym)
-                  df = tk.history(period=period, interval="1d", prepost=False)
+                  df = yf.Ticker(yahoo_sym).history(period=period, interval='1d', prepost=False)
                   if df.empty:
-                      print(f"❌ {s} 无数据"); continue
+                      print(f'❌ {s} 无数据'); continue
 
                   out = []
                   for t, row in df.iterrows():
@@ -64,12 +58,12 @@ jobs:
                           "v": int(row.Volume)
                       })
 
-                  file_name = s.replace(".", "") + ".json"   # 0700HK.json
-                  with open(f"docs/data/{file_name}", "w") as f:
+                  file_name = s.replace(".","") + ".json"   # 0700.HK → 0700HK.json
+                  with open(f'docs/data/{file_name}', 'w') as f:
                       json.dump(out, f, separators=(',', ':'))
-                  print(f"✅ {s} → {file_name} 共 {len(out)} 条")
+                  print(f'✅ {s} → {file_name} 共 {len(out)} 条')
               except Exception as e:
-                  print(f"❌ {s} 失败: {e}")
+                  print(f'❌ {s} 失败: {e}')
           PY
 
       - name: Commit & Push
@@ -78,6 +72,6 @@ jobs:
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           git add docs/data
           git diff --cached --quiet && echo "无更新" || (
-            git commit -m "chore: 新增/更新 ${{ github.event.inputs.symbols }} ${{ github.event.inputs.period }} 数据"
+            git commit -m "chore: 更新 ${{ github.event.inputs.symbols }} ${{ github.event.inputs.period }} 数据"
             git push
           )
