@@ -34,7 +34,7 @@ jobs:
 
       - name: 生成 JSON
         run: |
-          python $GITHUB_WORKSPACE/scripts/crawl_any.py \
+          python $GITHUB_WORKSPACE/crawl.py \
             "${{ github.event.inputs.symbols }}" \
             "${{ github.event.inputs.period }}"
 
