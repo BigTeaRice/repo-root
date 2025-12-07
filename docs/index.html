@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>股票分析工具 </title>
+  <title>股票分析工具</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
@@ -57,8 +57,8 @@
 
 <footer class="fixed bottom-0 left-0 right-0 bg-gray-800 flex justify-center gap-4 p-3 shadow z-10">
   <a href="./" class="text-white text-sm bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">主页</a>
-  <a href="https://bigtearice.github.io/my-backtest-repo/" class="text-white text-sm bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">回测</a>
-  <a href="#" onclick="aiAnalysis();return false;" class="text-white text-sm bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">AI 分析</a>
+  <a href="https://bigtearice.github.io/my-backtest-repo/" target="_blank" class="text-white text-sm bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">回测</a>
+  <a href="https://bigtearice.github.io/stock-ai-analysis/" target="_blank" class="text-white text-sm bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">AI 分析</a>
 </footer>
 
 <script>
@@ -103,7 +103,7 @@ function calcIndicators(data){
   const ema=(arr,n)=>arr.map((v,i)=>i?arr.slice(0,i+1).reduce((a,b,i,arr)=>a+(2/(n+1))*(b-a),arr[0]):arr[0]);
   const ema12=ema(c,12),ema26=ema(c,26);const macd=ema12.map((v,i)=>v-ema26[i]);const signal=ema(macd.filter((v,i)=>i>=25),9);
   const atr=(()=>{const tr=i=>Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1]));let out=[];for(let i=0;i<l.length;i++)out[i]=i?Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1])):h[i]-l[i];for(let i=1;i<l.length;i++)out[i]=(out[i-1]*13+out[i])/14;return out})();
-  return data.map((d,i)=>({...d,ma5:ma5[i],ma10:ma10[i],ma20:ma20[i],ub:ub[i],lb:lb[i],rsi:rsi[i],atr:atr[i],macd:macd[i],signal:signal[i-ma20.findIndex(v=>v!==null)]}));
+  return data.map((d,i)=>({...d,ma5:ma5[i],ma10:ma10[i],ma20:ma20[i],ub:ub[i],lb:lb[i],rsi:rsi[i],atr:atr[i],macd:macd[i],signal:signal[i],doji:Math.abs(d.o-d.c)<(d.h-d.l)*0.1}));
 }
 
 /* --------- 卡片更新 --------- */
@@ -143,7 +143,7 @@ function drawCharts(data){
 /* --------- 回测 (此函数已不再通过链接调用，但保留在代码中) --------- */
 function backtest(){
   if(!ohlcvData.length){print('❌ 请先查询数据');return;}
-  const c=ohlcvData.map(d=>d.c);
+  const c=ohlcvData.map(d=>d.c),o=ohlcvData.map(d=>d.o),h=ohlcvData.map(d=>d.h),l=ohlcvData.map(d=>d.l);
   const ma5=c.map((v,i)=>i<4?null:c.slice(i-4,i+1).reduce((a,b)=>a+b)/5);
   const ma20=c.map((v,i)=>i<19?null:c.slice(i-19,i+1).reduce((a,b)=>a+b)/20);
   let pos=0,cash=10000,hold=0,trades=0;
